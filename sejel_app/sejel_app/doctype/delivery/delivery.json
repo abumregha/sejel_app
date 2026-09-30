@@ -1,0 +1,191 @@
+{
+ "actions": [],
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["station", "tank", "fuel_type", "supplier", "requested_quantity", "expected_quantity", "received_quantity", "shortage", "order_date", "arrival_date", "pre_reading", "post_reading", "document_number", "invoice_number", "invoiced_amount", "paid_amount", "payment_date", "payment_reference", "payment_status", "status", "total_allocated", "remaining_on_truck"],
+ "fields": [
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Station",
+   "options": "Station",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tank",
+   "fieldtype": "Link",
+   "label": "Primary Tank",
+   "options": "Tank"
+  },
+  {
+   "fieldname": "fuel_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fuel Type",
+   "options": "Fuel Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Marketing Company"
+  },
+  {
+   "fieldname": "requested_quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Requested Quantity (L)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "expected_quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Expected Quantity (L)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "received_quantity",
+   "fieldtype": "Float",
+   "label": "Received Quantity (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "shortage",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Shortage (L)"
+  },
+  {
+   "fieldname": "order_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Order Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "arrival_date",
+   "fieldtype": "Datetime",
+   "label": "Arrival Date"
+  },
+  {
+   "fieldname": "pre_reading",
+   "fieldtype": "Float",
+   "label": "Pre Reading"
+  },
+  {
+   "fieldname": "post_reading",
+   "fieldtype": "Float",
+   "label": "Post Reading"
+  },
+  {
+   "fieldname": "document_number",
+   "fieldtype": "Data",
+   "label": "Document Number"
+  },
+  {
+   "fieldname": "invoice_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Invoice Number"
+  },
+  {
+   "fieldname": "invoiced_amount",
+   "fieldtype": "Currency",
+   "label": "Invoiced Amount",
+   "options": "currency:LYD"
+  },
+  {
+   "default": "0",
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "payment_date",
+   "fieldtype": "Datetime",
+   "label": "Payment Date"
+  },
+  {
+   "fieldname": "payment_reference",
+   "fieldtype": "Data",
+   "label": "Payment Reference"
+  },
+  {
+   "default": "unpaid",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Payment Status",
+   "options": "unpaid\npartial\npaid"
+  },
+  {
+   "default": "ordered",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "ordered\nreceived\nclaimed\nsettled\nclosed"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_allocated",
+   "fieldtype": "Float",
+   "label": "Total Allocated (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "remaining_on_truck",
+   "fieldtype": "Float",
+   "label": "Remaining on Truck (L)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Delivery",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Finance"
+  },
+  {
+   "read": 1,
+   "role": "Sejel Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

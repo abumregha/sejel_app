@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "photo", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at"],
+ "fields": [
+  {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Shift",
+   "options": "Shift",
+   "reqd": 1
+  },
+  {
+   "fieldname": "meter",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Meter",
+   "options": "Meter",
+   "reqd": 1
+  },
+  {
+   "fieldname": "attendant",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Attendant",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "start_reading",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Start Reading",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_reading",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "End Reading"
+  },
+  {
+   "default": "0",
+   "fieldname": "liters_sold",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Liters Sold"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
+  },
+  {
+   "fieldname": "exception_type",
+   "fieldtype": "Select",
+   "label": "Exception Type",
+   "options": "\nreset\nreplacement\nother"
+  },
+  {
+   "fieldname": "exception_authorized_by",
+   "fieldtype": "Link",
+   "label": "Exception Authorized By",
+   "options": "User"
+  },
+  {
+   "description": "Reason for a reading gap or meter exception (required when exception_type is set).",
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "default": "manual",
+   "description": "How this reading was captured: manual entry, automatic pump interface, or imported file (future hardware layer feeds the same workflow).",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "manual\nautomatic\nimported"
+  },
+  {
+   "fieldname": "recorded_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Recorded At"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Meter Reading",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

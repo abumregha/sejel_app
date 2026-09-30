@@ -1,0 +1,147 @@
+{
+ "actions": [],
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["tank", "station", "date", "opening_reading", "closing_reading", "received_quantity", "transferred_in", "transferred_out", "sold_quantity", "theoretical_level", "actual_level", "variance", "variance_type", "status", "notes"],
+ "fields": [
+  {
+   "fieldname": "tank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Tank",
+   "options": "Tank",
+   "reqd": 1
+  },
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Station",
+   "options": "Station",
+   "reqd": 1
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "opening_reading",
+   "fieldtype": "Link",
+   "label": "Opening Reading",
+   "options": "Tank Reading"
+  },
+  {
+   "fieldname": "closing_reading",
+   "fieldtype": "Link",
+   "label": "Closing Reading",
+   "options": "Tank Reading"
+  },
+  {
+   "default": "0",
+   "fieldname": "received_quantity",
+   "fieldtype": "Float",
+   "label": "Received Quantity (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "transferred_in",
+   "fieldtype": "Float",
+   "label": "Transferred In (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "transferred_out",
+   "fieldtype": "Float",
+   "label": "Transferred Out (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "sold_quantity",
+   "fieldtype": "Float",
+   "label": "Sold Quantity (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "theoretical_level",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Theoretical Level (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "actual_level",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Actual Level (L)"
+  },
+  {
+   "default": "0",
+   "fieldname": "variance",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Variance (L)"
+  },
+  {
+   "default": "matched",
+   "fieldname": "variance_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Variance Type",
+   "options": "matched\nsurplus\nshortage"
+  },
+  {
+   "default": "draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "draft\nconfirmed"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Fuel Reconciliation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sejel Finance"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

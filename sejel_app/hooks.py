@@ -5,6 +5,35 @@ app_description = "Fuel Station Management System"
 app_email = "admin@sejel.ly"
 app_license = "mit"
 
+# Fix CORS for Vue SPA
+# CORS: the Vue SPA is served same-origin via nginx (port 8004), so browser
+# requests never need cross-origin access. Pin to the server's own origin —
+# wildcard CORS on a financial system is an open-door policy.
+allow_cors = ["http://102.213.180.186:8004"]
+
+# Website route rules - serve Vue SPA
+website_route_rules = [
+	{
+		"from_route": "/app/<path:app_path>",
+		"to_route": "app",
+	},
+	{
+		"from_route": "/app",
+		"to_route": "app",
+	},
+]
+
+# Override whitelisted methods for API
+override_whitelisted_methods = {
+	"sejel_app.api.auth.login": "sejel_app.api.auth.login",
+}
+
+# Transaction-safe error logging: Frappe's log_error_snapshot dies inside an
+# aborted Postgres transaction (InFailedSqlTransaction) and the deferred-insert
+# fallback is lost on redis restart — errors never reach the Error Log doctype.
+# This hook installs a patched logger once per process (idempotent).
+before_request = ["sejel_app.error_logging.patch_once"]
+
 # Apps
 # ------------------
 

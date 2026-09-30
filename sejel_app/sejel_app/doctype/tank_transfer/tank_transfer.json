@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "creation": "2026-09-09 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["station", "from_tank", "to_tank", "fuel_type", "quantity", "reason", "status", "transfer_date"],
+ "fields": [
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "in_list_view": 0,
+   "label": "Station",
+   "options": "Station",
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_tank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "From Tank",
+   "options": "Tank",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_tank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "To Tank",
+   "options": "Tank",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fuel_type",
+   "fieldtype": "Link",
+   "in_list_view": 0,
+   "label": "Fuel Type",
+   "options": "Fuel Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity (L)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "in_list_view": 0,
+   "label": "Reason"
+  },
+  {
+   "default": "completed",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "draft\ncompleted\ncancelled"
+  },
+  {
+   "default": "now",
+   "fieldname": "transfer_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Transfer Date"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-09 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Tank Transfer",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

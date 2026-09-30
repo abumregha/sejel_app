@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "confirmed_by", "confirmed_at"],
+ "fields": [
+  {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shift",
+   "options": "Shift",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Station",
+   "options": "Station",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total_liters",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Liters"
+  },
+  {
+   "fieldname": "expected_sales",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Expected Sales",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "total_cash",
+   "fieldtype": "Currency",
+   "label": "Total Cash",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "total_vouchers",
+   "fieldtype": "Currency",
+   "label": "Total Vouchers",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "total_pos",
+   "fieldtype": "Currency",
+   "label": "Total POS",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "total_collection",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Collection",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "total_expenses",
+   "fieldtype": "Currency",
+   "label": "Total Expenses",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "net_cash",
+   "fieldtype": "Currency",
+   "label": "Net Cash",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "difference",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Difference",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "difference_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Difference Type",
+   "options": "matched\nsurplus\nshortage"
+  },
+  {
+   "default": "draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "draft\nconfirmed"
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User"
+  },
+  {
+   "fieldname": "confirmed_at",
+   "fieldtype": "Datetime",
+   "label": "Confirmed At"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [
+  {
+   "link_doctype": "Shift Fuel Summary",
+   "link_fieldname": "reconciliation"
+  }
+ ],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Reconciliation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sejel Finance"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

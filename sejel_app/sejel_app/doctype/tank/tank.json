@@ -1,0 +1,110 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["tank_name", "station", "fuel_type", "capacity", "current_level", "dedicated_to_machine", "last_reading_date"],
+ "fields": [
+  {
+   "fieldname": "tank_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tank Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Station",
+   "options": "Station",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fuel_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fuel Type",
+   "options": "Fuel Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "capacity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Capacity (L)",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "current_level",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Current Level (L)"
+  },
+   {
+    "fieldname": "dedicated_to_machine",
+    "fieldtype": "Link",
+    "label": "Dedicated to Machine",
+    "options": "Machine",
+    "description": "Optional: dedicate this tank to a specific pump"
+   },
+   {
+    "fieldname": "last_reading_date",
+    "fieldtype": "Datetime",
+    "label": "Last Reading Date"
+   }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [
+  {
+   "link_doctype": "Tank Reading",
+   "link_fieldname": "tank"
+  },
+  {
+   "link_doctype": "Delivery",
+   "link_fieldname": "tank"
+  },
+  {
+   "link_doctype": "Tank Transfer",
+   "link_fieldname": "from_tank"
+  }
+ ],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Tank",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sejel Supervisor"
+  }
+ ],
+ "search_fields": "tank_name",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "tank_name",
+ "track_changes": 1
+}

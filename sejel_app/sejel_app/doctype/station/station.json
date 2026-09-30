@@ -1,0 +1,184 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "station_name",
+  "address",
+  "status",
+  "relationship_type",
+  "marketing_company",
+  "cash_collection_mode",
+  "target_cash_amount",
+  "photo_meter_required",
+  "day_close_time",
+  "column_break_1",
+  "islands_count",
+  "machines_per_island",
+  "meters_per_machine",
+  "tanks_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "station_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Station Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "default": "active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "active\ninactive\nmaintenance"
+  },
+  {
+   "fieldname": "relationship_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Relationship Type",
+   "options": "owned\nrented\nagency"
+  },
+  {
+   "fieldname": "marketing_company",
+   "fieldtype": "Link",
+   "label": "Marketing Company",
+   "options": "Marketing Company"
+  },
+  {
+   "default": "during_shift",
+   "fieldname": "cash_collection_mode",
+   "fieldtype": "Select",
+   "label": "Cash Collection Mode",
+   "options": "during_shift\nend_of_shift"
+  },
+  {
+   "default": "500",
+   "fieldname": "target_cash_amount",
+   "fieldtype": "Currency",
+   "label": "Target Cash Amount",
+   "options": "currency:LYD"
+  },
+  {
+   "default": "0",
+   "fieldname": "photo_meter_required",
+   "fieldtype": "Check",
+   "label": "Photo Meter Required"
+  },
+  {
+   "description": "Daily closing/reading-cycle boundary for this station (e.g. 23:00 or 11:00). The meter-reading period runs from this time one day to the same time the next day. Never hard-coded in business logic. Default 23:00 is enforced in Station.validate (Frappe Time fields stamp wall-clock when a JSON default is present).",
+   "fieldname": "day_close_time",
+   "fieldtype": "Time",
+   "label": "Day Close Time"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Section Break",
+   "label": "Station Configuration"
+  },
+  {
+   "default": "2",
+   "fieldname": "islands_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Islands Count"
+  },
+  {
+   "default": "2",
+   "fieldname": "machines_per_island",
+   "fieldtype": "Int",
+   "label": "Machines per Island"
+  },
+  {
+   "default": "2",
+   "fieldname": "meters_per_machine",
+   "fieldtype": "Int",
+   "label": "Meters per Machine"
+  },
+  {
+   "default": "4",
+   "fieldname": "tanks_count",
+   "fieldtype": "Int",
+   "label": "Tanks Count"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [
+  {
+   "link_doctype": "Island",
+   "link_fieldname": "station"
+  },
+  {
+   "link_doctype": "Machine",
+   "link_fieldname": "station"
+  },
+  {
+   "link_doctype": "Tank",
+   "link_fieldname": "station"
+  },
+  {
+   "link_doctype": "Meter",
+   "link_fieldname": "station"
+  },
+  {
+   "link_doctype": "Shift",
+   "link_fieldname": "station"
+  }
+ ],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Station",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sejel Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sejel Supervisor"
+  },
+  {
+   "read": 1,
+   "role": "Sejel Finance"
+  }
+ ],
+ "search_fields": "station_name,address",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "station_name",
+ "track_changes": 1
+}

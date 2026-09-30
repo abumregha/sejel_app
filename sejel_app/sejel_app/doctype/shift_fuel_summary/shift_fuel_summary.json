@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "creation": "2026-09-08 06:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["reconciliation", "fuel_type", "liters_sold", "unit_price", "expected_sales"],
+ "fields": [
+  {
+   "fieldname": "reconciliation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Reconciliation",
+   "options": "Reconciliation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fuel_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Fuel Type",
+   "options": "Fuel Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "liters_sold",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Liters Sold"
+  },
+  {
+   "fieldname": "unit_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Unit Price (Frozen)",
+   "options": "currency:LYD"
+  },
+  {
+   "fieldname": "expected_sales",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Expected Sales",
+   "options": "currency:LYD"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-08 06:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Shift Fuel Summary",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Finance"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

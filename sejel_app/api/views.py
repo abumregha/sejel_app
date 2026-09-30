@@ -1,0 +1,500 @@
+import frappe
+import json
+from .crud import get_list, get_doc, create_doc, update_doc, delete_doc
+from .scoping import apply_to_filters, check_station
+from . import reports as reports_mod
+
+# Frappe internal params to strip from filters
+SKIP_PARAMS = {"cmd", "resource", "user", "sid", "device", "type"}
+
+# URL slug → (DocType, list fields)
+RESOURCES = {
+	"stations": ("Station", ["name", "station_name", "address", "status", "relationship_type", "marketing_company", "day_close_time", "modified"]),
+	"islands": ("Island", ["name", "island_name", "station", "number", "status", "modified"]),
+	"machines": ("Machine", ["name", "machine_name", "island", "station", "number", "modified"]),
+	"meters": ("Meter", ["name", "meter_code", "machine", "fuel_type", "tank", "current_reading", "status", "modified"]),
+	"tanks": ("Tank", ["name", "tank_name", "station", "fuel_type", "capacity", "current_level", "last_reading_date", "modified"]),
+	"fuel-types": ("Fuel Type", ["name", "fuel_name", "fuel_name_en", "is_active", "modified"]),
+	"fuel-prices": ("Fuel Price", ["name", "fuel_type", "selling_price", "profit_margin", "cost_per_liter", "effective_date", "is_active", "modified"]),
+	"marketing-companies": ("Marketing Company", ["name", "company_name", "company_name_en", "modified"]),
+	"employees": ("Employee", ["name", "employee_name", "station", "phone", "status", "modified"]),
+	"shift-definitions": ("Shift Definition", ["name", "definition_name", "station", "island", "start_time", "end_time", "days", "is_active", "modified"]),
+	"shifts": ("Shift", ["name", "shift_name", "station", "definition", "employee", "island", "date", "start_time", "end_time", "is_day_close", "status", "modified"]),
+	"meter-readings": ("Meter Reading", ["name", "shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at", "modified"]),
+	"cash-collections": ("Cash Collection", ["name", "shift", "amount", "time", "received_by", "is_cancelled", "modified"]),
+	"vouchers": ("Voucher", ["name", "shift", "category", "count", "total_value", "is_cancelled", "modified"]),
+	"pos-records": ("POS Record", ["name", "shift", "total_amount", "transaction_count", "is_cancelled", "modified"]),
+	"expenses": ("Expense", ["name", "station", "shift", "category", "amount", "description", "status", "payment_method", "modified"]),
+	"expense-categories": ("Expense Category", ["name", "category_name", "station", "is_active", "modified"]),
+	"voucher-settlements": ("Voucher Settlement", ["name", "station", "submission_date", "total_value", "total_count", "denom_5", "denom_6", "denom_7", "denom_8", "status", "paid_amount", "modified"]),
+	"reconciliations": ("Reconciliation", ["name", "shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "modified"]),
+	"shift-fuel-summaries": ("Shift Fuel Summary", ["name", "reconciliation", "fuel_type", "liters_sold", "unit_price", "expected_sales", "modified"]),
+	"deliveries": ("Delivery", ["name", "station", "fuel_type", "supplier", "expected_quantity", "received_quantity", "shortage", "invoice_number", "payment_status", "status", "order_date", "modified"]),
+	"delivery-requests": ("Delivery Request", ["name", "station", "fuel_type", "requested_quantity", "priority", "status", "expected_delivery_date", "modified"]),
+	"tank-readings": ("Tank Reading", ["name", "tank", "reading_level", "reading_type", "recorded_at", "recorded_by", "notes", "modified"]),
+	"tank-transfers": ("Tank Transfer", ["name", "station", "from_tank", "to_tank", "fuel_type", "quantity", "reason", "status", "transfer_date", "modified"]),
+	"fuel-reconciliations": ("Fuel Reconciliation", ["name", "tank", "station", "date", "received_quantity", "transferred_in", "transferred_out", "sold_quantity", "theoretical_level", "actual_level", "variance", "variance_type", "status", "modified"]),
+	"shortage-claims": ("Shortage Claim", ["name", "delivery", "shortage_amount", "status", "claim_date", "settlement_date", "modified"]),
+	"voucher-categories": ("Voucher Category", ["name", "category_name", "value", "is_active", "modified"]),
+	"users": ("User", ["name", "username", "first_name", "last_name", "email", "enabled", "sejel_station", "modified"]),
+}
+
+
+def _get_resource():
+	return frappe.request.args.get("resource") or ""
+
+
+def _get_name():
+	return frappe.get_request_header("X-Doc-Name") or frappe.request.args.get("name") or ""
+
+
+def _get_filters():
+	return {k: v for k, v in frappe.request.args.items() if k not in SKIP_PARAMS}
+
+
+def _get_body():
+	return json.loads(frappe.request.data or "{}")
+
+
+def _decorate_users(rows):
+	"""Add the SPA-facing `role` (admin/manager/finance/supervisor) to User rows
+	from their Has Role children — Frappe stores roles on child docs, and the
+	generic list endpoint can only return flat fields."""
+	names = [r.get("name") for r in rows if r.get("name")]
+	role_map = {}
+	if names:
+		for hr in frappe.get_all(
+			"Has Role",
+			filters={"parenttype": "User", "parent": ["in", names]},
+			fields=["parent", "role"],
+		):
+			role_map.setdefault(hr.parent, []).append(hr.role)
+	for r in rows:
+		roles = role_map.get(r.get("name"), [])
+		r["role"] = (
+			"admin" if "System Manager" in roles
+			else "manager" if "Sejel Manager" in roles
+			else "finance" if "Sejel Finance" in roles
+			else "supervisor" if "Sejel Supervisor" in roles
+			else None
+		)
+		r.setdefault("username", r.get("name"))
+
+
+ROLE_TO_FRAPPE = {
+	"admin": ["System Manager", "Sejel Manager", "Sejel Supervisor", "Sejel Finance"],
+	"manager": ["Sejel Manager"],
+	"finance": ["Sejel Finance"],
+	"supervisor": ["Sejel Supervisor"],
+}
+
+
+def _apply_user_extras(doc, data):
+	"""Map the SPA's flat user payload onto User + role children."""
+	roles = ROLE_TO_FRAPPE.get(data.get("role"), ["Sejel Supervisor"])
+	doc.set("roles", [])
+	for r in roles:
+		doc.append("roles", {"role": r})
+	if "station" in data:
+		doc.sejel_station = data.get("station") or None
+
+
+def _create_user(data):
+	if not data.get("email"):
+		# User.email is mandatory in Frappe — synthesize from username
+		data["email"] = "{}@sejel.ly".format(data.get("username") or "user")
+	doc = frappe.new_doc("User")
+	doc.update({
+		"email": data["email"],
+		"first_name": data.get("first_name") or data.get("username") or "",
+		"last_name": data.get("last_name") or "",
+		"username": data.get("username") or None,
+		"enabled": 1,
+	})
+	if data.get("password"):
+		doc.new_password = data["password"]
+	_apply_user_extras(doc, data)
+	doc.insert()
+	return doc
+
+
+def _update_user(name, data):
+	doc = frappe.get_doc("User", name)
+	for f in ("first_name", "last_name", "username"):
+		if f in data:
+			doc.set(f, data[f])
+	if data.get("password"):
+		doc.new_password = data["password"]
+	if "enabled" in data:
+		doc.enabled = 1 if data["enabled"] else 0
+	if "role" in data:
+		_apply_user_extras(doc, data)
+	elif "station" in data:
+		doc.sejel_station = data.get("station") or None
+	doc.save()
+	return doc
+
+
+@frappe.whitelist(allow_guest=True)
+def crud_list(**kwargs):
+	resource = _get_resource()
+	if resource not in RESOURCES:
+		frappe.throw("Unknown resource: " + resource)
+	doctype, fields = RESOURCES[resource]
+
+	if frappe.request.method == "GET":
+		filters = _get_filters()
+		filters = apply_to_filters(doctype, filters)  # station-bound users: own station only
+		limit = int(filters.pop("limit_page_length", 0) or 0)
+		offset = int(filters.pop("offset", 0) or 0)
+		order_by = filters.pop("order_by", None)
+		result = get_list(doctype, fields=fields, filters=filters or None, limit_page_length=limit, offset=offset, order_by=order_by)
+		if resource == "users":
+			_decorate_users(result["results"])
+		return result
+	else:
+		if resource == "users":
+			return _create_user(_get_body())
+		return create_doc(doctype, _get_body())
+
+
+@frappe.whitelist(allow_guest=True)
+def crud_detail(**kwargs):
+	resource = _get_resource()
+	name = _get_name()
+	if resource not in RESOURCES:
+		frappe.throw("Unknown resource: " + resource)
+	doctype, fields = RESOURCES[resource]
+
+	if frappe.request.method == "GET":
+		check_station(doctype, name)
+		out = get_doc(doctype, name)
+		if resource == "users":
+			_decorate_users([out])
+			out["station_id"] = out.get("sejel_station")
+		return out
+	elif frappe.request.method in ("PUT", "PATCH"):
+		# PATCH = partial update (same semantics here: only provided fields are applied)
+		check_station(doctype, name)
+		if resource == "users":
+			return _update_user(name, _get_body())
+		return update_doc(doctype, name, _get_body())
+	elif frappe.request.method == "DELETE":
+		check_station(doctype, name)
+		return delete_doc(doctype, name)
+
+
+@frappe.whitelist(allow_guest=True)
+def close_shift(name):
+	check_station("Shift", name)
+	shift = frappe.get_doc("Shift", name)
+	shift.close_shift()
+	return {"ok": True, "status": shift.status}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_dashboard():
+	stations = frappe.get_all("Station", filters={"status": "active"}, fields=["name"])
+	total_stations = len(stations)
+	total_tanks = frappe.db.count("Tank")
+	open_shifts = frappe.db.count("Shift", {"status": ["in", ["open", "in_progress"]]})
+	pending_deliveries = frappe.db.count("Delivery Request", {"status": "pending"})
+	low_tanks = frappe.db.sql(
+		"""SELECT COUNT(*) FROM tabTank WHERE current_level < capacity * 0.2""",
+	)[0][0]
+	return {
+		"total_stations": total_stations,
+		"total_tanks": total_tanks,
+		"open_shifts": open_shifts,
+		"pending_deliveries": pending_deliveries,
+		"low_tanks": low_tanks,
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def daily_report():
+	"""Delegates to reports.daily_report — real Reconciliation aggregates."""
+	return reports_mod.daily_report(frappe.form_dict.get("date"))
+
+
+@frappe.whitelist(allow_guest=True)
+def export_station_excel_endpoint():
+	"""GET /api/export/?view=station|reconciliation|shift&name=<docname> → .xlsx"""
+	return reports_mod.export_station_excel(
+		frappe.form_dict.get("view") or "station",
+		frappe.form_dict.get("name") or "",
+	)
+
+
+@frappe.whitelist(allow_guest=True)
+def generate_shifts():
+	"""POST /api/generate-shifts/ — auto-create today's shifts from definitions.
+
+	Body/query: date (optional), emergency (0/1 — ignores the weekday filter),
+	station (optional; scoped users are always pinned to their own).
+	"""
+	from .shift_gen import generate_shifts_for_date
+	body = {}
+	try:
+		import json as _json
+		body = _json.loads(frappe.request.data or "{}")
+	except Exception:
+		pass
+	return generate_shifts_for_date(
+		body.get("date") or frappe.form_dict.get("date"),
+		body.get("emergency") if "emergency" in body else frappe.form_dict.get("emergency"),
+	)
+
+
+@frappe.whitelist(allow_guest=True)
+def monthly_report():
+	"""Delegates to reports.monthly_report — real per-station aggregates."""
+	return reports_mod.monthly_report(
+		frappe.form_dict.get("year"), frappe.form_dict.get("month")
+	)
+
+
+@frappe.whitelist(allow_guest=True)
+def daily_sales():
+	date = frappe.form_dict.get("date")
+	if not date:
+		frappe.throw("Date required")
+
+	cash_total = frappe.db.sql(
+		"""SELECT COALESCE(SUM(amount), 0) FROM `tabCash Collection` WHERE DATE(creation) = %s""",
+		date,
+	)[0][0] or 0
+
+	coupon_rows = frappe.db.sql(
+		"""SELECT category, COUNT(*) as cnt, SUM(total_value) as total
+		FROM `tabVoucher` WHERE DATE(creation) = %s GROUP BY category""",
+		date,
+		as_dict=True,
+	)
+
+	coupon_details = []
+	for row in coupon_rows:
+		cat_name = frappe.db.get_value("Voucher Category", row.category, "category_name") or row.category
+		val = frappe.db.get_value("Voucher Category", row.category, "value") or 0
+		coupon_details.append({
+			"category": int(val) if val else cat_name,
+			"count": row.cnt,
+			"total": row.total or 0,
+		})
+	coupon_details.sort(key=lambda x: x.get("category", 0))
+
+	coupon_total = sum(c["total"] for c in coupon_details)
+
+	epayment_total = frappe.db.sql(
+		"""SELECT COALESCE(SUM(total_amount), 0) FROM `tabPOS Record` WHERE DATE(creation) = %s""",
+		date,
+	)[0][0] or 0
+
+	expense_total = frappe.db.sql(
+		"""SELECT COALESCE(SUM(amount), 0) FROM `tabExpense` WHERE DATE(creation) = %s""",
+		date,
+	)[0][0] or 0
+
+	total_collection = cash_total + coupon_total + epayment_total
+	net_income = total_collection - expense_total
+
+	return {
+		"cash_sales": cash_total,
+		"coupon_sales": coupon_total,
+		"coupon_details": coupon_details,
+		"epayment_sales": epayment_total,
+		"total_collection": total_collection,
+		"total_expenses": expense_total,
+		"net_income": net_income,
+		"stations": [],
+	}
+
+
+# ── Station Setup Wizard ─────────────────────────────────────
+
+def _setup_station_impl(body):
+	"""Atomically create a Station with islands, machines, tanks and meters.
+
+	All documents are inserted inside one transaction; any failure rolls back
+	everything so no half-configured station is ever left behind.
+
+	body keys:
+		station: {station_name, address, relationship_type, status, marketing_company}
+		islands: [{machines, meters}, ...]       — per-island counts (islands may differ)
+		islands_count / machines_per_island /    — legacy uniform counts, used when
+		meters_per_machine                         `islands` is absent
+		tanks: [{fuel_type, capacity, tank_name?}, ...]
+
+	Raises ValidationError if a station with the same station_name already exists.
+	"""
+	if not isinstance(body, dict):
+		frappe.throw("Invalid request body")
+
+	station_data = body.get("station") or {}
+	station_name = (station_data.get("station_name") or "").strip()
+	if not station_name:
+		frappe.throw("Station name is required")
+
+	machines_per_island = int(body.get("machines_per_island") or 2)
+	meters_per_machine = int(body.get("meters_per_machine") or 2)
+	tanks_in = body.get("tanks") or []
+
+	# Per-island specs (client: islands don't necessarily hold the same number
+	# of pumps). Falls back to uniform counts when no spec is provided.
+	islands_spec = body.get("islands") or []
+	if islands_spec:
+		islands_count = len(islands_spec)
+		spec_machines = [max(0, min(20, int(s.get("machines", machines_per_island)))) for s in islands_spec]
+		spec_meters = [max(0, min(10, int(s.get("meters", meters_per_machine)))) for s in islands_spec]
+	else:
+		islands_count = int(body.get("islands_count") or 2)
+		spec_machines = [max(0, machines_per_island)] * islands_count
+		spec_meters = [max(0, meters_per_machine)] * islands_count
+
+	if islands_count < 0 or machines_per_island < 0 or meters_per_machine < 0:
+		frappe.throw("Counts cannot be negative")
+	if islands_count > 20:
+		frappe.throw("Counts exceed reasonable limits (20 islands)")
+	for t in tanks_in:
+		if not t.get("fuel_type"):
+			frappe.throw("Every tank needs a fuel type")
+		if not t.get("capacity") or float(t.get("capacity")) <= 0:
+			frappe.throw("Every tank needs a positive capacity")
+
+	created = []
+
+	try:
+		frappe.db.begin()
+
+		# Duplicate protection — Station docnames are hashes, so match on the field
+		if frappe.db.exists("Station", {"station_name": station_name}):
+			frappe.throw("A station named '{}' already exists".format(station_name))
+
+		# Station
+		station = frappe.new_doc("Station")
+		station.update({
+			"station_name": station_name,
+			"address": station_data.get("address") or "",
+			"relationship_type": station_data.get("relationship_type") or "owned",
+			"status": station_data.get("status") or "active",
+			# Deterministic day-close/reading-cycle boundary (Frappe Time fields
+			# would otherwise stamp the insert wall-clock; Station.validate also
+			# guards this for the plain form).
+			"day_close_time": station_data.get("day_close_time") or "23:00:00",
+		})
+		if station_data.get("marketing_company"):
+			station.marketing_company = station_data["marketing_company"]
+		station.insert()
+		created.append(("Station", station.name))
+
+		# Numbering continues after whatever already exists for this station
+		island_start = frappe.db.count("Island", {"station": station.name}) + 1
+		machine_counter = frappe.db.count(
+			"Machine",
+			{"station": station.name},
+		)
+
+		# Islands + Machines — counts come from the per-island spec so islands
+		# can hold different numbers of pumps/meters.
+		island_names = []
+		machine_names = []  # (machine_name, machine_number, island_name)
+		island_meter_counts = {}  # island_name -> meters per machine on this island
+		number = island_start
+		for i in range(islands_count):
+			island = frappe.new_doc("Island")
+			island.update({
+				"island_name": "جزيرة {}".format(number),
+				"station": station.name,
+				"number": number,
+			})
+			island.insert()
+			created.append(("Island", island.name))
+			island_names.append(island.name)
+			island_meter_counts[island.name] = spec_meters[i] if i < len(spec_meters) else 0
+
+			for m in range(spec_machines[i] if i < len(spec_machines) else 0):
+				machine_counter += 1
+				machine = frappe.new_doc("Machine")
+				machine.update({
+					"machine_name": "مضخة {}".format(machine_counter),
+					"island": island.name,
+					"number": m + 1,
+				})
+				machine.insert()
+				created.append(("Machine", machine.name))
+				machine_names.append((machine.name, machine_counter, island.name))
+
+			number += 1
+
+		# Tanks (one per entry; fuel type set per tank)
+		tank_names = []  # (tank_name, fuel_type)
+		fuel_cycle = []
+		for idx, t in enumerate(tanks_in):
+			tank = frappe.new_doc("Tank")
+			tank.update({
+				"tank_name": t.get("tank_name") or "خزان {} ({})".format(idx + 1, t["fuel_type"]),
+				"station": station.name,
+				"fuel_type": t["fuel_type"],
+				"capacity": t["capacity"],
+				"current_level": t.get("current_level") or 0,
+			})
+			tank.insert()
+			created.append(("Tank", tank.name))
+			tank_names.append(tank.name)
+			fuel_cycle.append(t["fuel_type"])
+
+		total_meters = sum(island_meter_counts.values())
+		if total_meters > 0:
+			if not tank_names:
+				frappe.throw("Meters require at least one tank")
+
+			# Meters need a globally-unique code; seed data uses M01A/M01B…
+			used_codes = set(frappe.get_all("Meter", pluck="meter_code"))
+			for island_name in island_names:
+				meters_here = island_meter_counts.get(island_name, 0)
+				if meters_here <= 0:
+					continue
+				island_machines = [m for m in machine_names if m[2] == island_name]
+				for machine_name, mnum, _ in island_machines:
+					for s in range(meters_here):
+						code = "M{:02d}{}".format(mnum, chr(ord("A") + s))
+						while code in used_codes:
+							code += "X"
+						used_codes.add(code)
+						# Cycle fuel types across tanks; meter links to the
+						# first tank carrying that fuel type.
+						fuel_type = fuel_cycle[(s) % len(fuel_cycle)]
+						tank_link = tank_names[fuel_cycle.index(fuel_type)]
+						meter = frappe.new_doc("Meter")
+						meter.update({
+							"meter_code": code,
+							"machine": machine_name,
+							"fuel_type": fuel_type,
+							"tank": tank_link,
+						})
+						meter.insert()
+						created.append(("Meter", meter.name))
+
+		frappe.db.commit()
+	except Exception:
+		frappe.db.rollback()
+		raise
+
+	return {
+		"ok": True,
+		"station": station.name,
+		"created": {
+			"islands": len(island_names),
+			"machines": len(machine_names),
+			"tanks": len(tank_names),
+			"meters": sum(1 for c in created if c[0] == "Meter"),
+		},
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def setup_station():
+	"""Atomic station setup for the Vue SPA wizard.
+	POST /api/setup-station/ with JSON body (see _setup_station_impl).
+	"""
+	return _setup_station_impl(_get_body())
