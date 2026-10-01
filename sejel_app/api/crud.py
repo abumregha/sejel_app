@@ -47,25 +47,115 @@ def get_doc(doctype, name):
 
 def create_doc(doctype, data):
 	"""Create a new document."""
-	if isinstance(data, str):
-		data = json.loads(data)
-	doc = frappe.new_doc(doctype)
-	doc.update(data)
-	doc.insert()
-	return doc.as_dict()
+	try:
+		if isinstance(data, str):
+			data = json.loads(data)
+		doc = frappe.new_doc(doctype)
+		doc.update(data)
+		doc.insert()
+		return doc.as_dict()
+	except Exception as e:
+		raise _humanize(e)
 
 
 def update_doc(doctype, name, data):
 	"""Update an existing document."""
-	if isinstance(data, str):
-		data = json.loads(data)
-	doc = frappe.get_doc(doctype, name)
-	doc.update(data)
-	doc.save()
-	return doc.as_dict()
+	try:
+		if isinstance(data, str):
+			data = json.loads(data)
+		doc = frappe.get_doc(doctype, name)
+		doc.update(data)
+		doc.save()
+		return doc.as_dict()
+	except Exception as e:
+		raise _humanize(e)
 
 
 def delete_doc(doctype, name):
-	"""Delete a document."""
-	frappe.delete_doc(doctype, name)
+	"""Delete a document.
+
+	Station teardown (client report 2026-10-01: "delete fails" with a bare
+	LinkExistsError while the SPA dumped the user on the login page): the
+	station's CONFIG children — islands, machines, meters, tanks, shift
+	definitions — have no cancel permission on their DocPerms, so they are
+	always draft and a hard delete is safe. We cascade them in dependency
+	order, then delete the station itself. Documents with FINANCIAL history
+	(shifts, readings, reconciliations, …) still have cancel permission and
+	still raise LinkExistsError — that block is intentional (audit trail) and
+	the SPA now explains it in Arabic via friendlyError().
+	"""
+	if doctype == "Station":
+		# Guard BEFORE cascading: a user without station-delete permission must
+		# not trigger the child cascade (that would orphan the config tree).
+		if not frappe.has_permission("Station", "delete", doc=name):
+			frappe.throw(_("ليست لديك صلاحية لحذف المحطات — يرجى التواصل مع مدير النظام"), frappe.PermissionError)
+		_cascade_delete_station_children(name)
+	try:
+		frappe.delete_doc(doctype, name, ignore_missing=True)
+	except frappe.PermissionError:
+		frappe.throw(_("ليست لديك صلاحية لحذف هذا السجل"), frappe.PermissionError)
 	return {"ok": True}
+
+
+def _station_child_names(doctype, station):
+	"""Names of a station's config children. Meter has NO station column
+	(machine → island → station) and Tank Reading goes through its tank — a
+	naive filters={"station": ...} raised UndefinedColumn (caught live)."""
+	if doctype == "Meter":
+		islands = _station_child_names("Island", station) or [""]
+		machines = frappe.get_all("Machine", filters={"island": ["in", islands]}, pluck="name") or [""]
+		return frappe.get_all("Meter", filters={"machine": ["in", machines]}, pluck="name")
+	if doctype == "Tank Reading":
+		tanks = _station_child_names("Tank", station) or [""]
+		return frappe.get_all("Tank Reading", filters={"tank": ["in", tanks]}, pluck="name")
+	return frappe.get_all(doctype, filters={"station": station}, pluck="name")
+
+
+def _cascade_delete_station_children(station):
+	"""Delete the station's config tree so the station itself can be removed.
+
+	Anything still linked after this (Shift, Reconciliation, …) raises
+	LinkExistsError from frappe.delete_doc — the deliberate audit block.
+	"""
+	for child_doctype in STATION_CONFIG_CHILDREN:
+		for child in _station_child_names(child_doctype, station):
+			frappe.delete_doc(child_doctype, child, ignore_missing=True)
+
+
+# Station config children, dependency order (grandchildren first).
+# These carry no financial history: cancel is not permitted on their DocPerms,
+# so they can only exist as drafts and a hard delete loses nothing auditable.
+STATION_CONFIG_CHILDREN = (
+	"Meter",         # → Machine → Island (no station column)
+	"Tank Reading",  # → Tank (operational log, no finance)
+	"Tank",          # → Station
+	"Machine",       # → Island
+	"Island",        # → Station
+	"Shift Definition",
+)
+
+
+def _humanize(e):
+	"""Translate low-level DB errors into 417 ValidationErrors the SPA can
+	show (client report 2026-10-01: saving a reading answered "an error
+	occurred" with no explanation — huge counter values overflowed the
+	numeric column and produced an unhandled 500 DataError)."""
+	if isinstance(e, frappe.ValidationError) or isinstance(e, frappe.PermissionError):
+		return e
+	try:
+		import psycopg2
+		from psycopg2.errors import DataError, NumericValueOutOfRange
+		if isinstance(e, (DataError, NumericValueOutOfRange)):
+			frappe.throw(
+				_("القيمة المُدخلة كبيرة جداً أو غير صالحة — تأكد من الأرقام المكتوبة على العداد"),
+			)
+	except ImportError:
+		pass
+	# numeric overflow arrives wrapped in a bare Exception by some drivers —
+	# sniff the message too
+	msg = str(e).lower()
+	if "numeric field overflow" in msg or "out of range" in msg or "invalid input syntax" in msg:
+		frappe.throw(
+			_("القيمة المُدخلة كبيرة جداً أو غير صالحة — تأكد من الأرقام المكتوبة على العداد"),
+		)
+	return e

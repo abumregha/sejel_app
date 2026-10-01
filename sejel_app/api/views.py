@@ -193,6 +193,61 @@ def close_shift(name):
 
 
 @frappe.whitelist(allow_guest=True)
+def ensure_day_close():
+	"""POST /api/ensure-day-close/ — idempotently return today's day-close
+	Shift for a station, creating it only if none exists.
+
+	Root-cause fix (client report 2026-10-01): the SPA decided "no day-close
+	container yet" from a dashboard payload that can be seconds stale — every
+	failed/slow save then created ANOTHER "إقفال يوم <date>" Shift (8 duplicates
+	observed on one test station). Server-side check-then-create inside one
+	request can't race the UI's stale list.
+	"""
+	body = {}
+	try:
+		body = json.loads(frappe.request.data or "{}")
+	except Exception:
+		pass
+	station = body.get("station") or frappe.form_dict.get("station")
+	date = body.get("date") or frappe.form_dict.get("date") or frappe.utils.today()
+	if not station:
+		frappe.throw(_("يرجى تحديد المحطة"))
+	check_station("Station", station)
+
+	existing = frappe.get_all(
+		"Shift",
+		filters={
+			"station": station, "date": date, "is_day_close": 1,
+			"status": ["in", ["open", "in_progress", "submitted"]],
+		},
+		fields=["name", "status"],
+		order_by="creation asc",
+		limit_page_length=1,
+	)
+	if existing:
+		s = existing[0]
+		return {"ok": True, "created": False, "name": s.name, "status": s.status}
+
+	# keep the shift times consistent with the station's reading cycle —
+	# the Station doc is authoritative (Frappe Time fields ignore JSON defaults,
+	# so it must be read and set explicitly)
+	close_t = frappe.db.get_value("Station", station, "day_close_time") or "23:00:00"
+	doc = frappe.get_doc({
+		"doctype": "Shift",
+		"station": station,
+		"shift_name": "إقفال يوم " + str(date),
+		"date": date,
+		# start=end is intentional: the day-close container brackets the whole
+		# reading cycle (e.g. 11:00→11:00), not an employee's working window.
+		"start_time": close_t,
+		"end_time": close_t,
+		"is_day_close": 1,
+		"status": "open",
+	}).insert()
+	return {"ok": True, "created": True, "name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_dashboard():
 	stations = frappe.get_all("Station", filters={"status": "active"}, fields=["name"])
 	total_stations = len(stations)
