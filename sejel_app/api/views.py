@@ -35,7 +35,7 @@ RESOURCES = {
 	"tank-readings": ("Tank Reading", ["name", "tank", "reading_level", "reading_type", "recorded_at", "recorded_by", "notes", "modified"]),
 	"tank-transfers": ("Tank Transfer", ["name", "station", "from_tank", "to_tank", "fuel_type", "quantity", "reason", "status", "transfer_date", "modified"]),
 	"fuel-reconciliations": ("Fuel Reconciliation", ["name", "tank", "station", "date", "received_quantity", "transferred_in", "transferred_out", "sold_quantity", "theoretical_level", "actual_level", "variance", "variance_type", "status", "modified"]),
-	"shortage-claims": ("Shortage Claim", ["name", "delivery", "shortage_amount", "status", "claim_date", "settlement_date", "modified"]),
+	"shortage-claims": ("Shortage Claim", ["name", "delivery", "shortage_amount", "notes", "status", "claim_date", "settlement_date", "modified"]),
 	"voucher-categories": ("Voucher Category", ["name", "category_name", "value", "is_active", "modified"]),
 	"users": ("User", ["name", "username", "first_name", "last_name", "email", "enabled", "sejel_station", "modified"]),
 }
@@ -183,6 +183,55 @@ def _update_user(name, data):
 
 
 @frappe.whitelist(allow_guest=True)
+def _enrich_shortage_claims(rows):
+	"""Shortage claims showed NaN and blank columns because the screens read
+	fields the list endpoint never returned (QA-20). Return the human-facing
+	values the operator needs rather than raw document hashes."""
+	if not rows:
+		return
+	delivery_ids = {r.get("delivery") for r in rows if r.get("delivery")}
+	deliveries = {}
+	if delivery_ids:
+		for d in frappe.get_all(
+			"Delivery",
+			filters={"name": ["in", list(delivery_ids)]},
+			fields=["name", "station", "invoice_number"],
+		):
+			deliveries[d.name] = d
+	station_names = {}
+	for name in {d.station for d in deliveries.values() if d.station}:
+		station_names[name] = frappe.db.get_value("Station", name, "station_name") or name
+	for r in rows:
+		d = deliveries.get(r.get("delivery"))
+		r["station_name"] = station_names.get(d.station) if d else None
+		r["claimed_quantity"] = r.get("shortage_amount")
+		r["delivery_id_display"] = (d.invoice_number if d else None) or r.get("delivery")
+		r["description"] = r.get("notes")
+
+
+def _enrich_fuel_reconciliations(rows):
+	"""«تسوية الوقود» read station_name / tank_name but the endpoint returned
+	only the raw link codes, so both columns rendered empty (QA-23)."""
+	if not rows:
+		return
+	station_names = {}
+	for name in {r.get("station") for r in rows if r.get("station")}:
+		station_names[name] = frappe.db.get_value("Station", name, "station_name") or name
+	tank_names = {}
+	for name in {r.get("tank") for r in rows if r.get("tank")}:
+		tank_names[name] = frappe.db.get_value("Tank", name, "tank_name") or name
+	for r in rows:
+		r["station_name"] = station_names.get(r.get("station"))
+		r["tank_name"] = tank_names.get(r.get("tank"))
+
+
+LIST_ENRICHERS = {
+	"shortage-claims": _enrich_shortage_claims,
+	"fuel-reconciliations": _enrich_fuel_reconciliations,
+}
+
+
+@frappe.whitelist(allow_guest=True)
 def crud_list(**kwargs):
 	resource = _get_resource()
 	if resource not in RESOURCES:
@@ -198,6 +247,8 @@ def crud_list(**kwargs):
 		result = get_list(doctype, fields=fields, filters=filters or None, limit_page_length=limit, offset=offset, order_by=order_by)
 		if resource == "users":
 			_decorate_users(result["results"])
+		elif resource in LIST_ENRICHERS:
+			LIST_ENRICHERS[resource](result["results"])
 		return result
 	else:
 		if resource == "users":

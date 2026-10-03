@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.utils import now_datetime, getdate
 from frappe.model.document import Document
 
@@ -18,6 +19,7 @@ class Shift(Document):
 		self.closed_at = now_datetime()
 		self.save()
 
+		self._validate_prices_configured()
 		self.create_reconciliation()
 
 	def create_reconciliation(self):
@@ -143,6 +145,30 @@ class Shift(Document):
 			(fuel_type,),
 		)
 		return (price[0][0] if price else 0) or 0
+
+	def _validate_prices_configured(self):
+		"""Refuse to close a day whose fuel has no price.
+
+		_frozen_price() returns 0 when no Fuel Price exists, so a station with no
+		price configured closed its day reporting expected sales of 0.00 and a
+		shortage equal to the whole day's fuel - silently, with no warning
+		anywhere (QA-33). Better to stop, name the fuel, and say what to do.
+		"""
+		missing = []
+		for fuel_type, liters in self._fuel_totals().items():
+			if not liters:
+				continue
+			if not self._frozen_price(fuel_type, self.date):
+				name = frappe.db.get_value("Fuel Type", fuel_type, "fuel_name") or fuel_type
+				missing.append(name)
+		if missing:
+			frappe.throw(
+				_(
+					"لا يمكن إقفال اليوم: لم يتم ضبط سعر بيع لـ {0}. "
+					"أضف سعر الوقود من صفحة «أسعار الوقود» ثم أعد المحاولة."
+				).format("، ".join(missing)),
+				frappe.ValidationError,
+			)
 
 	def _calculate_expected_sales(self, total_liters):
 		"""Calculate expected sales using frozen fuel prices."""
