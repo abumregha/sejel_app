@@ -1,5 +1,6 @@
 import frappe
 import json
+from frappe import _
 from .crud import get_list, get_doc, create_doc, update_doc, delete_doc
 from .scoping import apply_to_filters, check_station
 from . import reports as reports_mod
@@ -20,7 +21,7 @@ RESOURCES = {
 	"employees": ("Employee", ["name", "employee_name", "station", "phone", "status", "modified"]),
 	"shift-definitions": ("Shift Definition", ["name", "definition_name", "station", "island", "start_time", "end_time", "days", "is_active", "modified"]),
 	"shifts": ("Shift", ["name", "shift_name", "station", "definition", "employee", "island", "date", "start_time", "end_time", "is_day_close", "status", "modified"]),
-	"meter-readings": ("Meter Reading", ["name", "shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at", "modified"]),
+	"meter-readings": ("Meter Reading", ["name", "shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "is_opening", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at", "modified"]),
 	"cash-collections": ("Cash Collection", ["name", "shift", "amount", "time", "received_by", "is_cancelled", "modified"]),
 	"vouchers": ("Voucher", ["name", "shift", "category", "count", "total_value", "is_cancelled", "modified"]),
 	"pos-records": ("POS Record", ["name", "shift", "total_amount", "transaction_count", "is_cancelled", "modified"]),
@@ -48,8 +49,54 @@ def _get_name():
 	return frappe.get_request_header("X-Doc-Name") or frappe.request.args.get("name") or ""
 
 
-def _get_filters():
-	return {k: v for k, v in frappe.request.args.items() if k not in SKIP_PARAMS}
+def _get_filters(doctype=None):
+	"""Query-string filters for the generic list endpoint.
+
+	`?filters={"field": "value"}` (JSON) is the documented SPA contract. Any
+	other query parameter is transport noise, not a filter: passing them
+	straight through to get_list() made the endpoint raise UndefinedColumn for
+	anything that is not a real column — e.g. `?station=` on Meter Reading,
+	which has no station field (QA-5).
+
+	The pagination/ordering keys are still returned so crud_list can pop them.
+	Unknown keys are dropped rather than 500ing the whole list.
+	"""
+	args = dict(frappe.request.args or {})
+	filters = {}
+
+	raw = args.pop("filters", None)
+	if raw:
+		try:
+			parsed = json.loads(raw)
+		except (TypeError, ValueError):
+			frappe.throw(_("مرشح filters يجب أن يكون JSON صالحاً"))
+		if not isinstance(parsed, dict):
+			frappe.throw(_("مرشح filters يجب أن يكون كائن JSON"))
+		filters.update({k: v for k, v in parsed.items() if v not in (None, "")})
+
+	# control params — consumed by crud_list, never sent as filters
+	for key in ("limit_page_length", "offset", "order_by"):
+		if key in args:
+			filters[key] = args.pop(key)
+
+	for key, value in args.items():
+		if key in SKIP_PARAMS:
+			continue
+		if doctype and not _is_queryable_field(doctype, key):
+			# Unknown column: ignore rather than blow up the whole list.
+			continue
+		filters[key] = value
+
+	return filters
+
+
+def _is_queryable_field(doctype, fieldname):
+	"""True when `fieldname` is a real field of `doctype` (or a link target)."""
+	meta = frappe.get_meta(doctype)
+	if meta.has_field(fieldname):
+		return True
+	# Link fields are also filterable by the name of the linked document.
+	return any(f.fieldtype == "Link" and f.fieldname == fieldname for f in meta.fields)
 
 
 def _get_body():
@@ -143,7 +190,7 @@ def crud_list(**kwargs):
 	doctype, fields = RESOURCES[resource]
 
 	if frappe.request.method == "GET":
-		filters = _get_filters()
+		filters = _get_filters(doctype)
 		filters = apply_to_filters(doctype, filters)  # station-bound users: own station only
 		limit = int(filters.pop("limit_page_length", 0) or 0)
 		offset = int(filters.pop("offset", 0) or 0)

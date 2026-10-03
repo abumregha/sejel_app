@@ -139,8 +139,8 @@ def _single_station_payload(sid, date, role):
 		"Meter Reading",
 		filters={"shift": ["in", _shift_names(sid, date)]},
 		fields=["name", "shift", "meter", "attendant", "start_reading", "end_reading",
-			"liters_sold", "photo", "exception_type", "exception_authorized_by",
-			"notes", "source", "recorded_at"],
+			"liters_sold", "is_opening", "photo", "exception_type",
+			"exception_authorized_by", "notes", "source", "recorded_at"],
 		order_by="recorded_at desc, creation desc",
 	)
 	latest_by_meter = {}
@@ -217,6 +217,7 @@ def _single_station_payload(sid, date, role):
 				"start_reading": rd.start_reading if rd else None,
 				"end_reading": rd.end_reading if rd else None,
 				"liters_sold": (rd.liters_sold if rd else None),
+				"is_opening": (rd.is_opening if rd else None),
 				"attendant": (rd.attendant if rd else None),
 				"photo": rd.photo if rd else None,
 				"exception_type": rd.exception_type if rd else None,

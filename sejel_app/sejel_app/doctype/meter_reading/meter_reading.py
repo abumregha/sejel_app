@@ -9,6 +9,7 @@ class MeterReading(Document):
 		# from a future hardware layer feed the same canonical workflow.
 		if not self.source:
 			self.source = "manual"
+		self.flag_opening_baseline()
 		# Timestamp every reading — "latest reading per meter" and continuity
 		# both order on recorded_at; API-created rows had it NULL, which made
 		# latest-per-meter nondeterministic.
@@ -17,10 +18,42 @@ class MeterReading(Document):
 		self.calculate_liters_sold()
 		self.validate_continuity()
 
+	def flag_opening_baseline(self):
+		"""Mark the first reading of a meter that has no established counter.
+
+		The readings screen sends the opening value from `Meter.current_reading`
+		(`ReadingsView.prevOf`). A meter created by the setup wizard starts at
+		0/None, so that fallback used to book the meter's **entire cumulative
+		total** as one day's sale — QA-32 measured 8 guns entered at 1,000 L
+		each being recorded as 807,849 L / 121,177 د.ل instead of 8,000 L /
+		1,200 د.ل. The overflow then flows into the reconciliation, the daily
+		report and the shortage verdict.
+
+		So: the first reading of a meter that has neither a previous reading nor
+		a counter is a **baseline**, not a sale. It is flagged (is_opening) and
+		books 0 litres; the next day books normally against it. A meter that
+		already has a counter, or any meter with earlier readings, is untouched.
+		"""
+		if not self.meter:
+			return
+		if not self.is_opening:
+			earlier = frappe.get_all(
+				"Meter Reading",
+				filters={"meter": self.meter, "name": ["!=", self.name]},
+				limit_page_length=1,
+				fields=["name"],
+			)
+			counter = frappe.db.get_value("Meter", self.meter, "current_reading")
+			if not earlier and not counter:
+				self.is_opening = 1
+
 	def calculate_liters_sold(self):
 		# Use `is not None`, not truthiness: 0 is a legitimate previous reading
 		# for a brand-new gun starting from zero, and end−0 must still compute.
-		if self.start_reading is not None and self.end_reading is not None:
+		if self.is_opening:
+			# A baseline establishes the counter — it is not fuel that was sold.
+			self.liters_sold = 0
+		elif self.start_reading is not None and self.end_reading is not None:
 			self.liters_sold = self.end_reading - self.start_reading
 		elif self.start_reading is not None and self.end_reading is None:
 			self.liters_sold = 0

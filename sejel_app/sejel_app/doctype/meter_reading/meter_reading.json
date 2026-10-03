@@ -3,7 +3,7 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "photo", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at"],
+ "field_order": ["shift", "meter", "attendant", "start_reading", "end_reading", "liters_sold", "is_opening", "photo", "exception_type", "exception_authorized_by", "notes", "source", "recorded_at"],
  "fields": [
   {
    "fieldname": "shift",
@@ -48,6 +48,14 @@
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Liters Sold"
+  },
+  {
+   "fieldname": "is_opening",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Opening",
+   "description": "First recorded reading for a meter with no established counter. Establishes the baseline and books 0 litres."
   },
   {
    "fieldname": "photo",
