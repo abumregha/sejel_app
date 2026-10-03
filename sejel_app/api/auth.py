@@ -39,6 +39,20 @@ def login():
 
 
 @frappe.whitelist(allow_guest=True)
+def logout():
+	"""Destroy the server session.
+
+	The SPA logout used to be client-side only: it cleared the Pinia store and
+	redirected, but the `sid` cookie stayed valid, so pressing Back — or reopening
+	a tab that had the app cached — restored a live authenticated session without
+	any credential (QA-1). This ends the session server-side and clears the cookie.
+	"""
+	login_manager = frappe.auth.LoginManager()
+	login_manager.logout()
+	return {"ok": True}
+
+
+@frappe.whitelist(allow_guest=True)
 def get_me():
 	"""Return current user info. Returns 401 if not authenticated."""
 	if frappe.session.user == "Guest":
