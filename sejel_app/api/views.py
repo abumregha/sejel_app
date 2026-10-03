@@ -2,7 +2,7 @@ import frappe
 import json
 from frappe import _
 from .crud import get_list, get_doc, create_doc, update_doc, delete_doc
-from .scoping import apply_to_filters, check_station, explicit_station_filter
+from .scoping import apply_to_filters, check_station, check_station_payload, explicit_station_filter, scoped_station
 from . import reports as reports_mod
 
 # Frappe internal params to strip from filters
@@ -203,7 +203,7 @@ def _update_user(name, data):
 	return doc
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def _enrich_shortage_claims(rows):
 	"""Shortage claims showed NaN and blank columns because the screens read
 	fields the list endpoint never returned (QA-20). Return the human-facing
@@ -252,7 +252,7 @@ LIST_ENRICHERS = {
 }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def crud_list(**kwargs):
 	resource = _get_resource()
 	if resource not in RESOURCES:
@@ -277,12 +277,15 @@ def crud_list(**kwargs):
 			LIST_ENRICHERS[resource](result["results"])
 		return result
 	else:
+		body = _get_body()
 		if resource == "users":
-			return _create_user(_get_body())
-		return create_doc(doctype, _get_body())
+			return _create_user(body)
+		# reads guard the document that exists; this guards the one being made
+		check_station_payload(doctype, body)
+		return create_doc(doctype, body)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def crud_detail(**kwargs):
 	resource = _get_resource()
 	name = _get_name()
@@ -300,15 +303,17 @@ def crud_detail(**kwargs):
 	elif frappe.request.method in ("PUT", "PATCH"):
 		# PATCH = partial update (same semantics here: only provided fields are applied)
 		check_station(doctype, name)
+		body = _get_body()
+		check_station_payload(doctype, body)  # may not move a doc into another station
 		if resource == "users":
-			return _update_user(name, _get_body())
-		return update_doc(doctype, name, _get_body())
+			return _update_user(name, body)
+		return update_doc(doctype, name, body)
 	elif frappe.request.method == "DELETE":
 		check_station(doctype, name)
 		return delete_doc(doctype, name)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def close_shift(name):
 	check_station("Shift", name)
 	shift = frappe.get_doc("Shift", name)
@@ -316,7 +321,7 @@ def close_shift(name):
 	return {"ok": True, "status": shift.status}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def ensure_day_close():
 	"""POST /api/ensure-day-close/ — idempotently return today's day-close
 	Shift for a station, creating it only if none exists.
@@ -382,7 +387,7 @@ def ensure_day_close():
 	return {"ok": True, "created": True, "name": doc.name, "status": doc.status, "closed": False}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_dashboard():
 	stations = frappe.get_all("Station", filters={"status": "active"}, fields=["name"])
 	total_stations = len(stations)
@@ -401,13 +406,13 @@ def get_dashboard():
 	}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def daily_report():
 	"""Delegates to reports.daily_report — real Reconciliation aggregates."""
 	return reports_mod.daily_report(frappe.form_dict.get("date"))
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_station_excel_endpoint():
 	"""GET /api/export/?view=station|reconciliation|shift&name=<docname> → .xlsx"""
 	return reports_mod.export_station_excel(
@@ -416,7 +421,7 @@ def export_station_excel_endpoint():
 	)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def generate_shifts():
 	"""POST /api/generate-shifts/ — auto-create today's shifts from definitions.
 
@@ -436,7 +441,7 @@ def generate_shifts():
 	)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def monthly_report():
 	"""Delegates to reports.monthly_report — real per-station aggregates."""
 	return reports_mod.monthly_report(
@@ -444,21 +449,41 @@ def monthly_report():
 	)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def daily_sales():
+	"""Site-wide cash/coupon/e-payment totals for one date, scoped to the
+	caller's stations.
+
+	Every aggregate here ran as raw SQL with no station filter (round 4,
+	2026-10-03): a supervisor bound to one station could read the whole
+	company's cash, and before the guest flag was removed, so could an
+	unauthenticated visitor.
+	"""
 	date = frappe.form_dict.get("date")
 	if not date:
 		frappe.throw("Date required")
 
+	mine = scoped_station()
+	stations = [mine] if mine else frappe.get_all("Station", filters={"status": "active"}, pluck="name")
+	if not stations:
+		return {
+			"cash_sales": 0, "coupon_sales": 0, "coupon_details": [],
+			"epayment_sales": 0, "total_collection": 0, "total_expenses": 0,
+			"net_income": 0, "stations": [],
+		}
+
 	cash_total = frappe.db.sql(
-		"""SELECT COALESCE(SUM(amount), 0) FROM `tabCash Collection` WHERE DATE(creation) = %s""",
-		date,
+		"""SELECT COALESCE(SUM(c.amount), 0) FROM `tabCash Collection` c
+		JOIN `tabShift` s ON s.name = c.shift
+		WHERE DATE(c.creation) = %s AND s.station IN %s""",
+		(date, tuple(stations)),
 	)[0][0] or 0
 
 	coupon_rows = frappe.db.sql(
-		"""SELECT category, COUNT(*) as cnt, SUM(total_value) as total
-		FROM `tabVoucher` WHERE DATE(creation) = %s GROUP BY category""",
-		date,
+		"""SELECT v.category, COUNT(*) as cnt, SUM(v.total_value) as total
+		FROM `tabVoucher` v JOIN `tabShift` s ON s.name = v.shift
+		WHERE DATE(v.creation) = %s AND s.station IN %s GROUP BY v.category""",
+		(date, tuple(stations)),
 		as_dict=True,
 	)
 
@@ -476,13 +501,16 @@ def daily_sales():
 	coupon_total = sum(c["total"] for c in coupon_details)
 
 	epayment_total = frappe.db.sql(
-		"""SELECT COALESCE(SUM(total_amount), 0) FROM `tabPOS Record` WHERE DATE(creation) = %s""",
-		date,
+		"""SELECT COALESCE(SUM(p.total_amount), 0) FROM `tabPOS Record` p
+		JOIN `tabShift` s ON s.name = p.shift
+		WHERE DATE(p.creation) = %s AND s.station IN %s""",
+		(date, tuple(stations)),
 	)[0][0] or 0
 
 	expense_total = frappe.db.sql(
-		"""SELECT COALESCE(SUM(amount), 0) FROM `tabExpense` WHERE DATE(creation) = %s""",
-		date,
+		"""SELECT COALESCE(SUM(amount), 0) FROM `tabExpense`
+		WHERE DATE(creation) = %s AND station IN %s""",
+		(date, tuple(stations)),
 	)[0][0] or 0
 
 	total_collection = cash_total + coupon_total + epayment_total
@@ -685,7 +713,7 @@ def _setup_station_impl(body):
 	}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def setup_station():
 	"""Atomic station setup for the Vue SPA wizard.
 	POST /api/setup-station/ with JSON body (see _setup_station_impl).

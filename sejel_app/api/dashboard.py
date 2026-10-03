@@ -81,7 +81,7 @@ def _fuel_prices(date):
 	return prices
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def dashboard_station():
 	"""GET /api/dashboard-station/?station=&date= — full station payload.
 

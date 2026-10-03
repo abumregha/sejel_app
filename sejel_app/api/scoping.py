@@ -151,3 +151,51 @@ def check_station(doctype, name):
 	doc_station = _resolve_doc_station(doctype, name)
 	if doc_station != station:
 		frappe.throw("غير مصرح لك بالوصول إلا لبيانات محطتك", frappe.PermissionError)
+
+
+def payload_station(doctype, data):
+	"""The station a create/update PAYLOAD points at, or None if not derivable.
+
+	Reads (`check_station`) guard the document that already exists. The write
+	paths in views.py never called it — a station-bound supervisor could POST a
+	Tank Transfer, or a bound finance user an Expense, with `station` set to
+	someone else's station, and it was accepted (round 4, 2026-10-03). This is
+	the same question asked BEFORE the row exists.
+	"""
+	if doctype in DIRECT_STATION_DOCTYPES:
+		return data.get("station")
+	if doctype in SHIFT_CHILD_DOCTYPES:
+		shift = data.get("shift")
+		return frappe.db.get_value("Shift", shift, "station") if shift else None
+	if doctype == "Shift Fuel Summary":
+		recon = data.get("reconciliation")
+		return frappe.db.get_value("Reconciliation", recon, "station") if recon else None
+	if doctype == "Tank Reading":
+		tank = data.get("tank")
+		return frappe.db.get_value("Tank", tank, "station") if tank else None
+	if doctype == "Meter":
+		machine = data.get("machine")
+		return frappe.db.get_value("Machine", machine, "station") if machine else None
+	if doctype == "Shortage Claim":
+		delivery = data.get("delivery")
+		return frappe.db.get_value("Delivery", delivery, "station") if delivery else None
+	return None
+
+
+def check_station_payload(doctype, data):
+	"""Raise if a station-bound user points a create/update at another station.
+
+	Silence-safe: a payload that names no station is left to the doctype's own
+	mandatory/link validation, but a payload that DOES name one must name the
+	user's own.
+	"""
+	station = scoped_station()
+	if not station or not data:
+		return
+	if doctype in GLOBAL_DOCTYPES:
+		return
+	target = payload_station(doctype, data)
+	if target is None:
+		return
+	if target != station:
+		frappe.throw("غير مصرح لك بحفظ بيانات تخص محطة أخرى", frappe.PermissionError)
