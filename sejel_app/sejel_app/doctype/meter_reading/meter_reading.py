@@ -61,10 +61,10 @@ class MeterReading(Document):
 	def validate_continuity(self):
 		"""Continuity requires a documented reason (Phase-2 decision Q-continuity).
 
-		A gap (start != previous end) or a negative span (end < start) is only
-		accepted with an exception_type (+ notes = the reason). Silent gaps are
-		rejected in Arabic. Rows without readings yet pass — continuity is only
-		checked when a start reading is provided.
+		A gap (start != previous end) or a backwards counter (end < start) is
+		only accepted with an exception_type (+ notes = the reason). Silent gaps
+		are rejected in Arabic. Rows without readings yet pass — continuity is
+		only checked when a start reading is provided.
 		"""
 		if not self.meter or self.start_reading is None:
 			return
@@ -77,9 +77,35 @@ class MeterReading(Document):
 			fields=["end_reading", "exception_type"],
 		)
 
-		# Negative span is never acceptable, reason or not
-		if self.end_reading is not None and self.end_reading < self.start_reading:
-			frappe.throw(_("قراءة الاختتام أقل من قراءة الافتتاح — راجع القراءة"))
+		# A backwards counter is either a typo or a genuine reset/replacement.
+		# Decide on the exception FIRST so a real meter reset is recoverable by
+		# the operator. The previous order rejected every backwards counter
+		# before the exception type was looked at, so the exception flow could
+		# never take effect (QA-10). An unexplained backwards counter is still
+		# refused outright.
+		if (
+			self.end_reading is not None
+			and self.start_reading is not None
+			and self.end_reading < self.start_reading
+		):
+			if not self.exception_type:
+				frappe.throw(
+					_(
+						"القراءة الحالية ({0}) أقل من القراءة السابقة ({1}). إذا تم تصفير "
+						"العداد أو استبداله، اختر نوع الاستثناء لتسجيل السبب"
+					).format(self.end_reading, self.start_reading)
+				)
+			if not (self.notes or "").strip():
+				frappe.throw(_("الرجاء كتابة سبب الاستثناء في حقل الملاحظات"))
+			# A reset or a replacement zeroes the counter, so the reading itself
+			# IS the measurable quantity dispensed since then. Litres sold before
+			# the reset are unknowable and cannot be recovered - the exception is
+			# the audit trail for them. An unexplained backwards move gets no
+			# guess at all.
+			if self.exception_type in ("reset", "replacement"):
+				self.liters_sold = self.end_reading
+			else:
+				self.liters_sold = 0
 
 		if previous and previous[0].end_reading is not None:
 			last_end = previous[0].end_reading
