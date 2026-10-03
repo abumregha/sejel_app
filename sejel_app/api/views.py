@@ -547,7 +547,7 @@ def _setup_station_impl(body):
 
 		# Duplicate protection — Station docnames are hashes, so match on the field
 		if frappe.db.exists("Station", {"station_name": station_name}):
-			frappe.throw("A station named '{}' already exists".format(station_name))
+			frappe.throw(_("يوجد محطة بنفس الاسم: {0} — اختر اسمًا آخر").format(station_name))
 
 		# Station
 		station = frappe.new_doc("Station")
@@ -634,7 +634,10 @@ def _setup_station_impl(body):
 				if meters_here <= 0:
 					continue
 				island_machines = [m for m in machine_names if m[2] == island_name]
-				for machine_name, mnum, _ in island_machines:
+				# NOTE: do not name this `_`. It shadows the gettext `_` imported
+				# above, making every `_("...")` in this function an
+				# UnboundLocalError (QA-6: duplicate station name answered 500).
+				for machine_name, mnum, _island_name in island_machines:
 					for s in range(meters_here):
 						code = "M{:02d}{}".format(mnum, chr(ord("A") + s))
 						while code in used_codes:
