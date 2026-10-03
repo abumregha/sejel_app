@@ -122,3 +122,26 @@ class MeterReading(Document):
 	def on_update(self):
 		if self.end_reading:
 			frappe.db.set_value("Meter", self.meter, "current_reading", self.end_reading)
+
+	def on_trash(self):
+		# Meter.current_reading is a denormalised copy of the LAST reading, so
+		# deleting a reading without rolling it back leaves the next cycle's
+		# "previous reading" pointing at a row that no longer exists — the
+		# operator is shown a phantom previous value and the QA-32 opening
+		# baseline is skipped. Recompute from whatever remains.
+		if not self.meter:
+			return
+		# Plain SQL: the ["is", "set"] filter operator is rewritten to `<> ''`,
+		# which Postgres rejects on a numeric column.
+		rows = frappe.db.sql(
+			"""
+			select end_reading from `tabMeter Reading`
+			where meter = %s and name != %s and end_reading is not null
+			order by recorded_at desc, creation desc limit 1
+			""",
+			(self.meter, self.name),
+		)
+		# 0, not None: the column is NOT NULL, and 0 is exactly what
+		# flag_opening_baseline() needs to see so the meter's next reading is
+		# booked as a baseline again instead of a full-counter sale.
+		frappe.db.set_value("Meter", self.meter, "current_reading", rows[0][0] if rows else 0)

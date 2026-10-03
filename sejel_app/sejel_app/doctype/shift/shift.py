@@ -23,10 +23,17 @@ class Shift(Document):
 		self.create_reconciliation()
 
 	def create_reconciliation(self):
-		"""Create financial reconciliation for this shift."""
+		"""Create financial reconciliation for this shift.
+
+		Refuses to write a second reconciliation for the same shift: closing a
+		day twice produced two identical financial records (2026-10-03).
+		"""
 		# Note: Shift / Meter Reading / Cash Collection / Voucher / POS Record are
 		# not submittable DocTypes in this app, so records created via the API are
 		# drafts (docstatus = 0). Filtering by docstatus = 1 would yield zero rows.
+		if frappe.db.exists("Reconciliation", {"shift": self.name}):
+			frappe.throw(_("يوجد تسوية مالية مسجلة لهذه المناوبة بالفعل"))
+
 		readings = frappe.get_all(
 			"Meter Reading",
 			filters={"shift": self.name},

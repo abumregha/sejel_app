@@ -79,13 +79,23 @@ def _get_filters(doctype=None):
 		if key in args:
 			filters[key] = args.pop(key)
 
+	ignored = []
 	for key, value in args.items():
 		if key in SKIP_PARAMS:
 			continue
 		if doctype and not _is_queryable_field(doctype, key):
-			# Unknown column: ignore rather than blow up the whole list.
+			# Unknown column: ignore rather than blow up the whole list — but
+			# RECORD it. Silently dropping a filter returns the caller every
+			# row of the table while it looks filtered, which is how a
+			# "show me this station" query turns into "here is everything"
+			# (2026-10-03 incident: readings of every station were deleted
+			# because `?station=` had been dropped from the query).
+			ignored.append(key)
 			continue
 		filters[key] = value
+
+	if ignored:
+		filters["_ignored_filters"] = ignored
 
 	return filters
 
@@ -240,11 +250,16 @@ def crud_list(**kwargs):
 
 	if frappe.request.method == "GET":
 		filters = _get_filters(doctype)
+		ignored_filters = filters.pop("_ignored_filters", [])
 		filters = apply_to_filters(doctype, filters)  # station-bound users: own station only
 		limit = int(filters.pop("limit_page_length", 0) or 0)
 		offset = int(filters.pop("offset", 0) or 0)
 		order_by = filters.pop("order_by", None)
 		result = get_list(doctype, fields=fields, filters=filters or None, limit_page_length=limit, offset=offset, order_by=order_by)
+		if ignored_filters:
+			# Tell the caller which of its filters were dropped instead of
+			# handing back an unfiltered list as if it were filtered.
+			result["ignored_filters"] = ignored_filters
 		if resource == "users":
 			_decorate_users(result["results"])
 		elif resource in LIST_ENRICHERS:
@@ -316,7 +331,7 @@ def ensure_day_close():
 		"Shift",
 		filters={
 			"station": station, "date": date, "is_day_close": 1,
-			"status": ["in", ["open", "in_progress", "submitted"]],
+			"status": ["in", ["open", "in_progress", "submitted", "closed"]],
 		},
 		fields=["name", "status"],
 		order_by="creation asc",
@@ -324,7 +339,18 @@ def ensure_day_close():
 	)
 	if existing:
 		s = existing[0]
-		return {"ok": True, "created": False, "name": s.name, "status": s.status}
+		# A closed day is financially sealed. Returning it as a save target
+		# would make the NEXT save create a second day-close shift and, on
+		# closing it, a SECOND reconciliation for the same station/day with the
+		# same figures (observed 2026-10-03 16:53 + 16:57). The caller must
+		# refuse to add readings to a closed day instead.
+		return {
+			"ok": True,
+			"created": False,
+			"name": s.name,
+			"status": s.status,
+			"closed": s.status == "closed",
+		}
 
 	# keep the shift times consistent with the station's reading cycle —
 	# the Station doc is authoritative (Frappe Time fields ignore JSON defaults,
@@ -342,7 +368,7 @@ def ensure_day_close():
 		"is_day_close": 1,
 		"status": "open",
 	}).insert()
-	return {"ok": True, "created": True, "name": doc.name, "status": doc.status}
+	return {"ok": True, "created": True, "name": doc.name, "status": doc.status, "closed": False}
 
 
 @frappe.whitelist(allow_guest=True)

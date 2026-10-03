@@ -438,7 +438,7 @@ def _shift_names(sid, date):
 def _aggregate_payload(date, role):
 	stations = frappe.get_all(
 		"Station", filters={"status": "active"},
-		fields=["name", "station_name", "address"],
+		fields=["name", "station_name", "address", "day_close_time"],
 		order_by="station_name asc",
 	)
 	out = []
@@ -461,10 +461,44 @@ def _aggregate_payload(date, role):
 			order_by="creation desc",
 			as_dict=True,
 		) or {}
+		# Operational state of the day for THIS station — the owner opening the
+		# app must see who still owes readings, not only last month's money.
+		gun_names = frappe.get_all(
+			"Meter",
+			filters={
+				"machine": ["in", frappe.get_all("Machine", filters={"station": s.name}, pluck="name")] or [""],
+				"status": "active",
+			},
+			pluck="name",
+		)
+		day_shifts = _shift_names(s.name, date)
+		read_meters = set(frappe.get_all(
+			"Meter Reading",
+			filters={"shift": ["in", day_shifts], "meter": ["in", gun_names or [""]]},
+			pluck="meter",
+		))
+		exceptions_today = frappe.db.count(
+			"Meter Reading",
+			{"shift": ["in", day_shifts], "meter": ["in", gun_names or [""]],
+			 "exception_type": ["is", "set"]},
+		)
+		day_closed = bool(frappe.db.count(
+			"Shift",
+			{"station": s.name, "date": date, "is_day_close": 1, "status": "closed"},
+		))
+
 		out.append({
 			"id": s.name,
 			"name": s.station_name or s.name,
 			"address": s.address,
+			"day_close_time": s.day_close_time,
+			"readings_status": {
+				"total": len(gun_names),
+				"done": len(read_meters),
+				"pending": len(gun_names) - len(read_meters),
+				"exceptions": exceptions_today,
+			},
+			"day_closed": day_closed,
 			"open_shifts": open_now,
 			"shifts_today": shifts_today,
 			"tanks": len(tanks),
