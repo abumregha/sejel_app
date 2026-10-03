@@ -270,6 +270,10 @@ def _single_station_payload(sid, date, role):
 				"message": f"الخزان {t['name']} ({t['fuel_type']}) — المستوى {level} ({t['percent']}%)",
 				"link": f"/app/tanks/{t['id']}",
 			})
+	# One alert per gun turned a single unfinished job into N separate lines the
+	# employee has to read and mentally add up. Group by pump instead:
+	# «لم تُسجّل قراءات مضخة 1 اليوم (المسدسات A، B، C)».
+	missing = []
 	for m in meter_payload:
 		if m["reading"] and m["reading"].get("exception_type"):
 			alerts.append({
@@ -280,11 +284,26 @@ def _single_station_payload(sid, date, role):
 				"link": f"/app/meters/{m['id']}",
 			})
 		elif not m["reading"] and m["status"] != "inactive":
-			alerts.append({
-				"type": "missing_reading", "severity": "warning",
-				"message": "لم تُسجّل قراءة {0} اليوم".format(_meter_where(m)),
-				"link": f"/app/meters/{m['id']}",
-			})
+			missing.append(m)
+
+	by_machine = {}
+	for m in missing:
+		by_machine.setdefault(m["machine"], []).append(m)
+	for machine, guns in by_machine.items():
+		letters = [g["gun_letter"] for g in guns if g.get("gun_letter")]
+		where = guns[0].get("machine_name") or "مضخة"
+		if len(guns) == 1:
+			message = "لم تُسجّل قراءة {0} اليوم".format(_meter_where(guns[0]))
+		else:
+			message = "لم تُسجّل قراءات {0} اليوم ({1})".format(
+				where,
+				"المسدسات " + "، ".join(letters) if letters else f"{len(guns)} مسدسات",
+			)
+		alerts.append({
+			"type": "missing_reading", "severity": "warning",
+			"message": message,
+			"link": "/app/readings",
+		})
 	# Employee shifts only — the day-close container is the readings/closing
 	# cycle, not someone's working shift, so it must not raise this alert.
 	unclosed = [s for s in shifts if s.status in ("open", "in_progress") and not s.is_day_close]
