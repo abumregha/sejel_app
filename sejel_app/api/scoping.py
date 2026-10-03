@@ -35,6 +35,38 @@ def _names(doctype, field, value):
 	return rows or [""]  # [""] matches nothing but keeps SQL valid
 
 
+# Shift-child doctypes that carry no station link of their own. An explicit
+# `?station=` on one of these used to be DROPPED as an unknown column, and the
+# caller then received every row in the site while the response looked filtered.
+# That is the same defect that deleted all 32 Meter Readings on 2026-10-03.
+SHIFT_CHILD_DOCTYPES = {"Meter Reading", "Cash Collection", "Voucher", "POS Record"}
+
+
+def explicit_station_filter(doctype, station):
+	"""Translate an explicit `?station=` into filters the doctype can honour.
+
+	Returns None when the doctype has no path to a station, so the caller can
+	keep its existing "ignore and record" behaviour for genuinely unknown keys.
+	"""
+	if not station:
+		return None
+	if doctype == "Station":
+		return {"name": station}
+	if doctype in DIRECT_STATION_DOCTYPES:
+		return {"station": station}
+	if doctype in SHIFT_CHILD_DOCTYPES:
+		return {"shift": ["in", _names("Shift", "station", station)]}
+	if doctype == "Shift Fuel Summary":
+		return {"reconciliation": ["in", _names("Reconciliation", "station", station)]}
+	if doctype == "Tank Reading":
+		return {"tank": ["in", _names("Tank", "station", station)]}
+	if doctype == "Meter":
+		return {"machine": ["in", _names("Machine", "station", station)]}
+	if doctype == "Shortage Claim":
+		return {"delivery": ["in", _names("Delivery", "station", station)]}
+	return None
+
+
 def apply_to_filters(doctype, filters):
 	"""Force the station filter onto a filters dict for station-bound users.
 

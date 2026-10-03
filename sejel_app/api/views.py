@@ -2,7 +2,7 @@ import frappe
 import json
 from frappe import _
 from .crud import get_list, get_doc, create_doc, update_doc, delete_doc
-from .scoping import apply_to_filters, check_station
+from .scoping import apply_to_filters, check_station, explicit_station_filter
 from . import reports as reports_mod
 
 # Frappe internal params to strip from filters
@@ -83,6 +83,17 @@ def _get_filters(doctype=None):
 	for key, value in args.items():
 		if key in SKIP_PARAMS:
 			continue
+		if key == "station" and doctype and not _is_queryable_field(doctype, key):
+			# `?station=` on a doctype that reaches its station through a parent
+			# (Meter Reading / Cash Collection / Voucher / POS Record all hang off
+			# Shift) was previously DROPPED as an unknown column. The caller then
+			# got every row in the site while the response looked filtered — the
+			# exact defect behind the 2026-10-03 loss of all 32 Meter Readings.
+			# Honour the filter instead of discarding it.
+			translated = explicit_station_filter(doctype, value)
+			if translated:
+				filters.update(translated)
+				continue
 		if doctype and not _is_queryable_field(doctype, key):
 			# Unknown column: ignore rather than blow up the whole list — but
 			# RECORD it. Silently dropping a filter returns the caller every
