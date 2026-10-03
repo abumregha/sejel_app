@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -14,25 +15,25 @@ class TankTransfer(Document):
 
 	def check_same_tank(self):
 		if self.from_tank == self.to_tank:
-			frappe.throw("Cannot transfer to the same tank")
+			frappe.throw(_("لا يمكن التحويل إلى نفس الخزان"))
 
 	def check_same_station(self):
 		from_station = frappe.db.get_value("Tank", self.from_tank, "station")
 		to_station = frappe.db.get_value("Tank", self.to_tank, "station")
 		if from_station != to_station:
-			frappe.throw("Tanks must belong to the same station")
+			frappe.throw(_("الخزانات تجب إلى نفس المحطة"))
 
 	def check_same_fuel(self):
 		from_fuel = frappe.db.get_value("Tank", self.from_tank, "fuel_type")
 		to_fuel = frappe.db.get_value("Tank", self.to_tank, "fuel_type")
 		if from_fuel != to_fuel:
-			frappe.throw("Tanks must contain the same fuel type")
+			frappe.throw(_("لا يمكن التحويل بين خزانين مختلفين في نوع الوقود"))
 		if self.fuel_type and self.fuel_type != from_fuel:
 			self.fuel_type = from_fuel
 
 	def check_positive_quantity(self):
 		if (self.quantity or 0) <= 0:
-			frappe.throw("Quantity must be greater than zero")
+			frappe.throw(_("الكمية محددة اقل من صفر"))
 
 	def apply_level_changes(self):
 		"""Update tank levels: source -qty, destination +qty."""

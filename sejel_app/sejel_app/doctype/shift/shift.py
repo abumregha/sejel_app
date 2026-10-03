@@ -12,7 +12,7 @@ class Shift(Document):
 	def close_shift(self):
 		"""Close shift and create reconciliation."""
 		if self.status != "submitted":
-			frappe.throw("Shift must be submitted before closing")
+			frappe.throw(_("المناوبة تحتاج إففالها قبل إغلاقها"))
 
 		self.status = "closed"
 		self.closed_by = frappe.session.user
