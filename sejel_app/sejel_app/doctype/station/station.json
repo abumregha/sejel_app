@@ -77,7 +77,7 @@
    "label": "Photo Meter Required"
   },
   {
-   "description": "Daily closing/reading-cycle boundary for this station (e.g. 23:00 or 11:00). The meter-reading period runs from this time one day to the same time the next day. Never hard-coded in business logic. Default 23:00 is enforced in Station.validate (Frappe Time fields stamp wall-clock when a JSON default is present).",
+   "description": "Daily closing/reading-cycle boundary for this station (e.g. 23:00 or 11:00). The meter-reading period runs from this time one day to the same time the next day. Never hard-coded in business logic. Left empty it falls back to 23:00 and the screens say so.",
    "fieldname": "day_close_time",
    "fieldtype": "Time",
    "label": "Day Close Time"
