@@ -233,6 +233,15 @@ def _single_station_payload(sid, date, role):
 			} if rd else None,
 		})
 
+	# ---- label each gun by its position on the pump (A, B, C...) -------------------
+	# Operators know a gun by its position, not by its generated meter code, so
+	# both the tree and the alerts address it as «مسدس A».
+	_seen = {}
+	for m in meter_payload:
+		n = _seen.get(m["machine"], 0)
+		m["gun_letter"] = chr(ord("A") + n)
+		_seen[m["machine"]] = n + 1
+
 	# ---- island/machine tree ------------------------------------------------------
 	tree = []
 	for isl in islands:
@@ -246,7 +255,7 @@ def _single_station_payload(sid, date, role):
 				"id": m.name,
 				"name": m.machine_name or f"مضخة {m.number or ''}".strip(),
 				"number": m.number,
-				"meters": [x for x in meter_payload if x["machine"] == m.name],
+				"meters": _guns_of_pump(meter_payload, m.name),
 			} for m in mach_list],
 		})
 
@@ -265,13 +274,15 @@ def _single_station_payload(sid, date, role):
 		if m["reading"] and m["reading"].get("exception_type"):
 			alerts.append({
 				"type": "meter_exception", "severity": "warning",
-				"message": f"استثناء في العداد {m['meter_code']} — {m['reading']['exception_type']}",
+				"message": "استثناء في {0} — {1}".format(
+					_meter_where(m), _exception_label(m["reading"]["exception_type"])
+				),
 				"link": f"/app/meters/{m['id']}",
 			})
 		elif not m["reading"] and m["status"] != "inactive":
 			alerts.append({
 				"type": "missing_reading", "severity": "warning",
-				"message": f"لا توجد قراءة لعداد {m['meter_code']} اليوم",
+				"message": "لم تُسجّل قراءة {0} اليوم".format(_meter_where(m)),
 				"link": f"/app/meters/{m['id']}",
 			})
 	# Employee shifts only — the day-close container is the readings/closing
@@ -472,3 +483,29 @@ def _aggregate_payload(date, role):
 		"alerts": [],
 		"date": date,
 	}
+
+
+
+
+def _guns_of_pump(meter_payload, machine):
+	"""The guns of one pump, in order."""
+	return [x for x in meter_payload if x["machine"] == machine]
+
+
+def _meter_where(m):
+	"""Human location of a gun: «مضخة 1 — مسدس A».
+
+	Operators do not know meter codes; they know the island, the pump and
+	the gun, so alerts are phrased that way.
+	"""
+	machine = m.get("machine_name") or "مضخة"
+	letter = m.get("gun_letter")
+	return machine + (f" — مسدس {letter}" if letter else "")
+
+
+def _exception_label(code):
+	return {
+		"reset": "تصفير العداد",
+		"replacement": "استبدال العداد",
+		"other": "سبب آخر",
+	}.get(code, "استثناء")
