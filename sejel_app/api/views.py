@@ -246,9 +246,27 @@ def _enrich_fuel_reconciliations(rows):
 		r["tank_name"] = tank_names.get(r.get("tank"))
 
 
+def _enrich_meters(rows):
+	if not rows:
+		return
+	counts = {}
+	names = [r.get("name") for r in rows if r.get("name")]
+	if names:
+		for c in frappe.get_all(
+			"Meter Reading",
+			filters={"meter": ["in", names]},
+			fields=["meter", "count(name) as reading_count"],
+			group_by="meter",
+		):
+			counts[c.meter] = int(c.reading_count or 0)
+	for r in rows:
+		r["reading_count"] = counts.get(r.get("name"), 0)
+
+
 LIST_ENRICHERS = {
 	"shortage-claims": _enrich_shortage_claims,
 	"fuel-reconciliations": _enrich_fuel_reconciliations,
+	"meters": _enrich_meters,
 }
 
 
@@ -661,6 +679,7 @@ def _setup_station_impl(body):
 			tank_names.append(tank.name)
 			fuel_cycle.append(t["fuel_type"])
 
+		meter_rows = []
 		total_meters = sum(island_meter_counts.values())
 		if total_meters > 0:
 			if not tank_names:
@@ -695,6 +714,7 @@ def _setup_station_impl(body):
 						})
 						meter.insert()
 						created.append(("Meter", meter.name))
+						meter_rows.append({"name": meter.name, "meter_code": code})
 
 		frappe.db.commit()
 	except Exception:
@@ -704,6 +724,7 @@ def _setup_station_impl(body):
 	return {
 		"ok": True,
 		"station": station.name,
+		"meters": meter_rows,
 		"created": {
 			"islands": len(island_names),
 			"machines": len(machine_names),
