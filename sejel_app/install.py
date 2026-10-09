@@ -30,8 +30,9 @@ def ensure_user_station_binding():
 	if frappe.db.exists("Custom Field", {"dt": "User", "fieldname": "sejel_station"}):
 		return
 
+	# No explicit commit: after_install / after_migrate commit at the end, and a
+	# commit inside a unit test would persist the test's own fixtures.
 	create_custom_field("User", dict(USER_STATION_FIELD), ignore_validate=True)
-	frappe.db.commit()
 
 
 def after_install():

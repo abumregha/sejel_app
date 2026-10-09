@@ -36,8 +36,9 @@ class TestUserStationBinding(FrappeTestCase):
 			"Custom Field", filters={"dt": "User", "fieldname": "sejel_station"}, pluck="name"
 		):
 			frappe.delete_doc("Custom Field", row, ignore_permissions=True, force=True)
+		# Postgres DDL is transactional, so the test runner's rollback undoes
+		# this — a commit here would persist the test's own fixtures.
 		frappe.db.sql("ALTER TABLE `tabUser` DROP COLUMN IF EXISTS sejel_station")
-		frappe.db.commit()
 		self.assertFalse(self._field_doc_exists())
 		self.assertFalse(self._column_exists())
 
