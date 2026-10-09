@@ -114,49 +114,49 @@ def dashboard_station():
 
 def _chain_impact(sid, date, latest_by_meter):
 	"""Per meter: the reading that FOLLOWS the one shown for `date`, and that
-	day's reconciliation. Scoped to the station's own meters and strictly later
-	than the displayed reading, so a correction can be shown its true impact."""
+	day's reconciliation.
+
+	Compared by the reading's DAY (its shift date), never by `recorded_at` —
+	that is the moment the reading was typed, so every day entered in one
+	sitting shares it and "the next day" came back empty.
+	"""
 	if not latest_by_meter:
 		return {}
 
-	shown = list(latest_by_meter.values())
-	earliest = min(r.recorded_at for r in shown if r.recorded_at)
-	shown_keys = {r.name: (str(r.recorded_at or ""), r.name) for r in shown}
-
-	later = frappe.get_all(
-		"Meter Reading",
-		filters={"meter": ["in", list(latest_by_meter)], "recorded_at": [">", earliest]},
-		fields=["name", "meter", "shift", "start_reading", "recorded_at"],
-		order_by="recorded_at asc, name asc",
+	rows = frappe.db.sql(
+		"""
+		select r.meter, r.name, r.shift, r.start_reading, s.date
+		from `tabMeter Reading` r
+		join `tabShift` s on s.name = r.shift
+		join `tabStation` st on st.name = s.station
+		where r.meter in %s and s.date > %s and s.station = %s
+		order by s.date asc, r.recorded_at asc, r.name asc
+		""",
+		(tuple(latest_by_meter), str(date), sid),
+		as_dict=True,
 	)
+	if not rows:
+		return {}
 
 	next_by_meter = {}
-	for row in later:
-		current = latest_by_meter.get(row.meter)
-		if not current or (str(row.recorded_at or ""), row.name) <= shown_keys.get(current.name, ("", "")):
-			continue
-		next_by_meter.setdefault(row.meter, row)
-
+	for row in rows:
+		next_by_meter.setdefault(row.meter, row)  # ordered by day: the first wins
 	if not next_by_meter:
 		return {}
 
 	recons = {}
 	for rec in frappe.get_all(
 		"Reconciliation",
-		filters={"shift": ["in", [r.shift for r in next_by_meter.values() if r.shift]]},
+		filters={"shift": ["in", [r.shift for r in next_by_meter.values()]]},
 		fields=["shift", "total_liters", "expected_sales", "status"],
 	):
 		recons[rec.shift] = rec
-
-	shift_dates = {}
-	for shift_name in {r.shift for r in next_by_meter.values() if r.shift}:
-		shift_dates[shift_name] = frappe.db.get_value("Shift", shift_name, "date")
 
 	out = {}
 	for meter, row in next_by_meter.items():
 		recon = recons.get(row.shift)
 		out[meter] = {
-			"date": str(shift_dates.get(row.shift) or ""),
+			"date": str(row.date or ""),
 			"start_reading": row.start_reading,
 			"recon": (
 				{
