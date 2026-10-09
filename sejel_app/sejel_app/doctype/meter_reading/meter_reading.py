@@ -120,8 +120,26 @@ class MeterReading(Document):
 					frappe.throw(_("الرجاء كتابة سبب فجوة القراءة في حقل الملاحظات"))
 
 	def on_update(self):
-		if self.end_reading:
-			frappe.db.set_value("Meter", self.meter, "current_reading", self.end_reading)
+		if not self.meter:
+			return
+		# An edit may target any date, so writing this row's end into the
+		# counter blindly rewound the meter when an OLDER row was corrected
+		# while newer rows exist. Recompute from the meter's latest CLOSED row
+		# (the ordering the dashboard uses). A pending entry (no closing
+		# reading yet) stores 0, and the counter has always ignored those —
+		# they must not zero a counter an operator already established.
+		# Plain SQL: the ["is", "set"] filter is rewritten to `<> ''`, which
+		# Postgres rejects on a numeric column.
+		rows = frappe.db.sql(
+			"""
+			select end_reading from `tabMeter Reading`
+			where meter = %s and end_reading is not null and end_reading != 0
+			order by recorded_at desc, name desc limit 1
+			""",
+			(self.meter,),
+		)
+		if rows:
+			frappe.db.set_value("Meter", self.meter, "current_reading", rows[0][0])
 
 	def on_trash(self):
 		# Meter.current_reading is a denormalised copy of the LAST reading, so
