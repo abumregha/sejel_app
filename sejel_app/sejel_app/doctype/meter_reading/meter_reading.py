@@ -58,24 +58,48 @@ class MeterReading(Document):
 		elif self.start_reading is not None and self.end_reading is None:
 			self.liters_sold = 0
 
-	def validate_continuity(self):
-		"""Continuity requires a documented reason (Phase-2 decision Q-continuity).
+	def _chain_neighbours(self):
+		"""The readings immediately before and after this one, in time.
 
-		A gap (start != previous end) or a backwards counter (end < start) is
-		only accepted with an exception_type (+ notes = the reason). Silent gaps
-		are rejected in Arabic. Rows without readings yet pass — continuity is
-		only checked when a start reading is provided.
+		Continuity used to compare against the NEWEST other reading, which made
+		every correction of an older day look like a gap, and it never checked
+		the other direction — so a corrected end silently left the next day's
+		start mismatched. Ordering by (recorded_at, name) is the order the
+		dashboard's "latest reading per meter" and the counter recompute use, so
+		all three agree on what "previous" means.
+		"""
+		rows = frappe.get_all(
+			"Meter Reading",
+			filters={"meter": self.meter, "name": ["!=", self.name]},
+			fields=["name", "start_reading", "end_reading", "recorded_at"],
+			order_by="recorded_at asc, name asc",
+		)
+		key = (str(self.recorded_at or ""), self.name)
+		before = None
+		after = None
+		for row in rows:
+			if (str(row.recorded_at or ""), row.name) < key:
+				before = row  # ascending order: the last one below us wins
+			elif after is None:
+				after = row  # …and the first one above us
+		return before, after
+
+	def _require_reason(self, message):
+		if not self.exception_type:
+			frappe.throw(message)
+		if not (self.notes or "").strip():
+			frappe.throw(_("الرجاء كتابة سبب الاستثناء في حقل الملاحظات"))
+
+	def validate_continuity(self):
+		"""Continuity in BOTH directions requires a documented reason.
+
+		A reading continues its own predecessor, and it must not silently break
+		the day that follows it. Either mismatch is accepted with an
+		exception_type + notes (the operator's own correction, or a genuine
+		meter reset/replacement); a silent gap is refused in Arabic.
 		"""
 		if not self.meter or self.start_reading is None:
 			return
-
-		previous = frappe.get_all(
-			"Meter Reading",
-			filters={"meter": self.meter, "name": ["!=", self.name]},
-			order_by="recorded_at desc, name desc",
-			limit_page_length=1,
-			fields=["end_reading", "exception_type"],
-		)
 
 		# A backwards counter is either a typo or a genuine reset/replacement.
 		# Decide on the exception FIRST so a real meter reset is recoverable by
@@ -107,17 +131,28 @@ class MeterReading(Document):
 			else:
 				self.liters_sold = 0
 
-		if previous and previous[0].end_reading is not None:
-			last_end = previous[0].end_reading
-			if self.start_reading != last_end:
-				if not self.exception_type:
-					frappe.throw(
-						_("قراءة الافتتاح ({0}) لا تطابق آخر قراءة اختتام ({1}) — أدخل سبب الاستثناء للمتابعة").format(
-							self.start_reading, last_end
-						)
-					)
-				if not (self.notes or "").strip():
-					frappe.throw(_("الرجاء كتابة سبب فجوة القراءة في حقل الملاحظات"))
+		before, after = self._chain_neighbours()
+
+		if before and before.end_reading is not None and self.start_reading != before.end_reading:
+			self._require_reason(
+				_(
+					"القراءة السابقة ({0}) لا تطابق نهاية قراءة اليوم الذي قبلها ({1}) — "
+					"أدخل سبب الاستثناء للمتابعة"
+				).format(self.start_reading, before.end_reading)
+			)
+
+		if (
+			after
+			and after.start_reading is not None
+			and self.end_reading is not None
+			and self.end_reading != after.start_reading
+		):
+			self._require_reason(
+				_(
+					"نهاية هذه القراءة ({0}) لا تطابق بداية القراءة التالية ({1}) — "
+					"أدخل سبب الاستثناء للمتابعة"
+				).format(self.end_reading, after.start_reading)
+			)
 
 	def _refresh_reconciliation(self, exclude=None):
 		# A reading of a CLOSED day has a Reconciliation built from it. Editing
