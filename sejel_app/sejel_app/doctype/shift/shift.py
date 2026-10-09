@@ -123,6 +123,9 @@ class Shift(Document):
 			for r in frappe.get_all("Meter Reading", filters=filters, fields=["liters_sold"])
 		)
 		expected_sales = self._calculate_expected_sales(total_liters, exclude=exclude)
+		# Cash expenses are operational rows too: adding or editing one on a
+		# closed day must move total_expenses / net_cash, not just the litres.
+		cash_expenses = self._cash_expenses()
 		difference = (recon.total_collection or 0) - expected_sales
 		frappe.db.set_value(
 			"Reconciliation",
@@ -130,6 +133,8 @@ class Shift(Document):
 			{
 				"total_liters": total_liters,
 				"expected_sales": expected_sales,
+				"total_expenses": cash_expenses,
+				"net_cash": (recon.total_cash or 0) - cash_expenses,
 				"difference": difference,
 				"difference_type": (
 					"matched" if difference == 0 else "surplus" if difference > 0 else "shortage"

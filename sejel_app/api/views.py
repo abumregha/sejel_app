@@ -29,7 +29,7 @@ RESOURCES = {
 	"cash-collections": ("Cash Collection", ["name", "shift", "amount", "time", "received_by", "is_cancelled", "modified"]),
 	"vouchers": ("Voucher", ["name", "shift", "category", "count", "total_value", "is_cancelled", "modified"]),
 	"pos-records": ("POS Record", ["name", "shift", "total_amount", "transaction_count", "is_cancelled", "modified"]),
-	"expenses": ("Expense", ["name", "station", "shift", "category", "amount", "description", "status", "payment_method", "modified"]),
+	"expenses": ("Expense", ["name", "station", "shift", "category", "amount", "description", "status", "payment_method", "expense_date", "modified"]),
 	"expense-categories": ("Expense Category", ["name", "category_name", "station", "is_active", "modified"]),
 	"voucher-settlements": ("Voucher Settlement", ["name", "station", "submission_date", "total_value", "total_count", "denom_5", "denom_6", "denom_7", "denom_8", "status", "paid_amount", "modified"]),
 	"reconciliations": ("Reconciliation", ["name", "shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "modified"]),

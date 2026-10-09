@@ -3,7 +3,20 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["station", "shift", "category", "amount", "description", "paid_to", "payment_method", "attachment", "status", "created_by", "approved_by"],
+ "field_order": [
+  "station",
+  "shift",
+  "category",
+  "amount",
+  "description",
+  "paid_to",
+  "payment_method",
+  "attachment",
+  "status",
+  "created_by",
+  "approved_by",
+  "expense_date"
+ ],
  "fields": [
   {
    "fieldname": "station",
@@ -35,6 +48,12 @@
    "label": "Amount",
    "options": "currency:LYD",
    "reqd": 1
+  },
+  {
+   "fieldname": "expense_date",
+   "fieldtype": "Date",
+   "label": "تاريخ المصروف (يوم belonged إليه)",
+   "description": "اليوم الذي ينتمي إليه المصروف — يربطه بمناوبة ذلك اليوم حتى لو سُجّل متأخراً"
   },
   {
    "fieldname": "description",
