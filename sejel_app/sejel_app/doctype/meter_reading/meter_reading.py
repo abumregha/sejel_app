@@ -119,6 +119,16 @@ class MeterReading(Document):
 				if not (self.notes or "").strip():
 					frappe.throw(_("الرجاء كتابة سبب فجوة القراءة في حقل الملاحظات"))
 
+	def _refresh_reconciliation(self, exclude=None):
+		# A reading of a CLOSED day has a Reconciliation built from it. Editing
+		# or deleting it changes that day's litres, so the financial record has
+		# to follow. Cheap no-op while the day is still open (no Reconciliation).
+		if not self.shift:
+			return
+		if not frappe.db.exists("Reconciliation", {"shift": self.shift}):
+			return
+		frappe.get_doc("Shift", self.shift).refresh_reconciliation(exclude=exclude)
+
 	def on_update(self):
 		if not self.meter:
 			return
@@ -140,6 +150,7 @@ class MeterReading(Document):
 		)
 		if rows:
 			frappe.db.set_value("Meter", self.meter, "current_reading", rows[0][0])
+		self._refresh_reconciliation()
 
 	def on_trash(self):
 		# Meter.current_reading is a denormalised copy of the LAST reading, so
@@ -163,3 +174,4 @@ class MeterReading(Document):
 		# flag_opening_baseline() needs to see so the meter's next reading is
 		# booked as a baseline again instead of a full-counter sale.
 		frappe.db.set_value("Meter", self.meter, "current_reading", rows[0][0] if rows else 0)
+		self._refresh_reconciliation(exclude=self.name)

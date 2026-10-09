@@ -76,3 +76,62 @@ class TestMeterReadingEdit(FrappeTestCase):
 		frappe.db.set_value("Meter", self.meter.name, "current_reading", 4242)
 		self._reading(shift, 4242, None)
 		self.assertEqual(self._db_counter(), 4242)
+
+	def _price(self):
+		frappe.get_doc(
+			{"doctype": "Fuel Price", "fuel_type": self.fuel.name, "selling_price": 2.0,
+			 "cost_per_liter": 1.5, "effective_date": "2026-01-01", "is_active": 1}
+		).insert(ignore_permissions=True)
+
+	def _closed_shift_with_recon(self, liters_end):
+		self._price()
+		# An established counter, otherwise the first reading is an opening
+		# baseline (QA-32) and books 0 L — the fixture would prove nothing.
+		frappe.db.set_value("Meter", self.meter.name, "current_reading", 100)
+		shift = self._shift("مناوبة QA مغلقة")
+		self._reading(shift, 100, 100 + liters_end)
+		shift.reload()
+		shift.status = "submitted"
+		shift.save()
+		shift.close_shift()
+		self.assertTrue(frappe.db.exists("Reconciliation", {"shift": shift.name}))
+		return shift
+
+	def _recon(self, shift):
+		return frappe.get_doc("Reconciliation", {"shift": shift.name})
+
+	def test_edit_closed_day_refreshes_reconciliation(self):
+		shift = self._closed_shift_with_recon(1000)
+		self.assertEqual(self._recon(shift).total_liters, 1000)
+
+		reading = frappe.get_all("Meter Reading", filters={"shift": shift.name}, fields=["name"])[0]
+		doc = frappe.get_doc("Meter Reading", reading.name)
+		doc.start_reading = 500
+		doc.end_reading = 1100
+		doc.save()
+
+		recon = self._recon(shift)
+		self.assertEqual(recon.total_liters, 600)
+		self.assertEqual(recon.expected_sales, 1200.0)  # 600 L × 2.0
+		self.assertEqual(recon.difference, -1200.0)     # no collection
+		self.assertEqual(recon.difference_type, "shortage")
+		summary = frappe.get_doc(
+			"Shift Fuel Summary",
+			{"reconciliation": recon.name, "fuel_type": self.fuel.name},
+		)
+		self.assertEqual(summary.liters_sold, 600)
+		self.assertEqual(summary.expected_sales, 1200.0)
+
+	def test_delete_closed_day_refreshes_reconciliation(self):
+		shift = self._closed_shift_with_recon(1000)
+		reading = frappe.get_all("Meter Reading", filters={"shift": shift.name}, fields=["name"])[0]
+		frappe.delete_doc("Meter Reading", reading.name, ignore_permissions=True)
+
+		recon = self._recon(shift)
+		self.assertEqual(recon.total_liters, 0)
+		self.assertEqual(recon.expected_sales, 0)
+		self.assertEqual(recon.difference, 0)
+		self.assertEqual(recon.difference_type, "matched")
+		self.assertFalse(
+			frappe.db.exists("Shift Fuel Summary", {"reconciliation": recon.name, "liters_sold": 1000})
+		)

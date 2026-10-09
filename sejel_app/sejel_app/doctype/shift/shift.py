@@ -92,12 +92,72 @@ class Shift(Document):
 		self._create_fuel_summaries(recon)
 		return recon
 
-	def _fuel_totals(self):
-		"""Aggregate liters sold per fuel type for this shift."""
+	def refresh_reconciliation(self, exclude=None):
+		"""Recompute the reading-derived totals of an existing Reconciliation.
+
+		Editing or deleting a reading of a CLOSED day changes litres and expected
+		sales, but the Reconciliation was frozen at close time, so the day's
+		financial record silently disagreed with the readings it came from. The
+		cash side (collections, vouchers, POS, expenses) cannot change by
+		editing a meter, so only the reading-derived fields move.
+
+		`exclude` is the reading being deleted: Frappe runs on_trash BEFORE the
+		row leaves the table, so without it a delete would recompute the same
+		liters it is trying to remove.
+
+		db.set_value / ignore_permissions on purpose: this runs inside the
+		reading's own save, i.e. inside whatever session made the edit — a
+		supervisor has no Reconciliation write permission and must still be able
+		to correct their own reading.
+		"""
+		recon_name = frappe.db.exists("Reconciliation", {"shift": self.name})
+		if not recon_name:
+			return
+
+		recon = frappe.get_doc("Reconciliation", recon_name)
+		filters = {"shift": self.name}
+		if exclude:
+			filters["name"] = ["!=", exclude]
+		total_liters = sum(
+			(r.liters_sold or 0)
+			for r in frappe.get_all("Meter Reading", filters=filters, fields=["liters_sold"])
+		)
+		expected_sales = self._calculate_expected_sales(total_liters, exclude=exclude)
+		difference = (recon.total_collection or 0) - expected_sales
+		frappe.db.set_value(
+			"Reconciliation",
+			recon_name,
+			{
+				"total_liters": total_liters,
+				"expected_sales": expected_sales,
+				"difference": difference,
+				"difference_type": (
+					"matched" if difference == 0 else "surplus" if difference > 0 else "shortage"
+				),
+			},
+		)
+
+		# The set of fuels with litres can shrink to nothing when an edit zeroes
+		# a fuel's only reading, so rebuild the rows rather than updating them.
+		for row in frappe.get_all(
+			"Shift Fuel Summary", filters={"reconciliation": recon_name}, fields=["name"]
+		):
+			frappe.delete_doc("Shift Fuel Summary", row.name, ignore_permissions=True)
+		self._create_fuel_summaries(frappe.get_doc("Reconciliation", recon_name), exclude=exclude)
+
+	def _fuel_totals(self, exclude=None):
+		"""Aggregate liters sold per fuel type for this shift.
+
+		`exclude` skips a reading that is being deleted: on_trash fires before
+		the row leaves the table.
+		"""
 		fuel_summaries = {}
+		filters = {"shift": self.name}
+		if exclude:
+			filters["name"] = ["!=", exclude]
 		readings = frappe.get_all(
 			"Meter Reading",
-			filters={"shift": self.name},
+			filters=filters,
 			fields=["meter", "liters_sold"],
 		)
 
@@ -177,12 +237,12 @@ class Shift(Document):
 				frappe.ValidationError,
 			)
 
-	def _calculate_expected_sales(self, total_liters):
+	def _calculate_expected_sales(self, total_liters, exclude=None):
 		"""Calculate expected sales using frozen fuel prices."""
 		if not total_liters:
 			return 0
 
-		fuel_summaries = self._fuel_totals()
+		fuel_summaries = self._fuel_totals(exclude=exclude)
 
 		total = 0
 		for fuel_type, liters in fuel_summaries.items():
@@ -190,9 +250,9 @@ class Shift(Document):
 
 		return total
 
-	def _create_fuel_summaries(self, reconciliation):
+	def _create_fuel_summaries(self, reconciliation, exclude=None):
 		"""Create per-fuel-type Shift Fuel Summary rows (frozen price at close)."""
-		for fuel_type, liters in self._fuel_totals().items():
+		for fuel_type, liters in self._fuel_totals(exclude=exclude).items():
 			price = self._frozen_price(fuel_type, self.date)
 			summary = frappe.new_doc("Shift Fuel Summary")
 			summary.reconciliation = reconciliation.name
