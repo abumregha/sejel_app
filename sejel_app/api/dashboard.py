@@ -140,12 +140,21 @@ def _single_station_payload(sid, date, role):
 		filters={"shift": ["in", _shift_names(sid, date)]},
 		fields=["name", "shift", "meter", "attendant", "start_reading", "end_reading",
 			"liters_sold", "is_opening", "photo", "exception_type",
-			"exception_authorized_by", "notes", "source", "recorded_at"],
+			"exception_authorized_by", "notes", "source", "recorded_at",
+			"modified", "modified_by"],
 		order_by="recorded_at desc, creation desc",
 	)
 	latest_by_meter = {}
 	for r in reading_rows:
 		latest_by_meter.setdefault(r.meter, r)
+
+	# "who edited" on saved cards: modified_by is a login, the operator needs a
+	# name. One query for all distinct editors, not one per reading.
+	editor_names = {}
+	for username in {r.modified_by for r in reading_rows if r.modified_by}:
+		full_name = frappe.db.get_value("User", username, "full_name")
+		if full_name:
+			editor_names[username] = full_name
 
 	# ---- shifts ---------------------------------------------------------------
 	shifts = frappe.get_all(
@@ -225,6 +234,9 @@ def _single_station_payload(sid, date, role):
 				"notes": rd.notes if rd else None,
 				"source": rd.source if rd else None,
 				"recorded_at": rd.recorded_at if rd else None,
+				"modified": rd.modified if rd else None,
+				"modified_by": rd.modified_by if rd else None,
+				"modified_by_name": editor_names.get(rd.modified_by) if rd else None,
 				"unit_price": prices.get(m.fuel_type, {}).get("selling_price"),
 				"expected_sales": (
 					round((rd.liters_sold or 0) * prices[m.fuel_type]["selling_price"], 2)
