@@ -128,6 +128,12 @@
    "read": 1,
    "write": 1,
    "role": "Sejel Supervisor"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Sejel Finance"
   }
  ],
  "sort_field": "modified",
