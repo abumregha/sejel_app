@@ -64,11 +64,30 @@ def update_doc(doctype, name, data):
 		if isinstance(data, str):
 			data = json.loads(data)
 		doc = frappe.get_doc(doctype, name)
+		if doctype == "Meter Reading":
+			_clear_stale_reading_exception(doc, data)
 		doc.update(data)
 		doc.save()
 		return doc.as_dict()
 	except Exception as e:
 		raise _humanize(e)
+
+
+def _clear_stale_reading_exception(doc, data):
+	"""A correction must be justified on its own, not by an older correction.
+
+	`doc.update(data)` only touches the fields the client sent, so an edit that
+	re-sent the two readings without an `exception_type` kept the reason from a
+	PREVIOUS correction — and validate_continuity then accepted the new change
+	without ever asking the operator (browser acceptance test 2026-10-09).
+	"""
+	if not {"start_reading", "end_reading"} & set(data or {}):
+		return
+	if "exception_type" in data:
+		return
+	if doc.get("exception_type") or doc.get("notes"):
+		doc.exception_type = ""
+		doc.notes = None
 
 
 def delete_doc(doctype, name):

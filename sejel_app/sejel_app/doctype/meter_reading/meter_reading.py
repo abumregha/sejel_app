@@ -58,30 +58,56 @@ class MeterReading(Document):
 		elif self.start_reading is not None and self.end_reading is None:
 			self.liters_sold = 0
 
+	def _chronology_key(self, shift_dates, row_name, shift, recorded_at):
+		"""Where a reading sits in time: its DAY first, then the entry stamp.
+
+		A reading belongs to the day on its shift — `recorded_at` is only when
+		it was TYPED. Entering yesterday and the day before in one sitting gives
+		all three rows the same entry stamp, so ordering by it alone followed
+		the typing order instead of the days, and the chain checks (and the
+		counter) pointed at the wrong row.
+		"""
+		return (shift_dates.get(shift, ""), str(recorded_at or ""), row_name)
+
+	def _shift_dates(self, shift_names):
+		dates = {}
+		names = [s for s in set(shift_names) if s]
+		if names:
+			for row in frappe.get_all(
+				"Shift", filters={"name": ["in", names]}, fields=["name", "date"]
+			):
+				dates[row.name] = str(row.date or "")
+		return dates
+
 	def _chain_neighbours(self):
-		"""The readings immediately before and after this one, in time.
+		"""The readings immediately before and after this one, by DAY.
 
 		Continuity used to compare against the NEWEST other reading, which made
 		every correction of an older day look like a gap, and it never checked
 		the other direction — so a corrected end silently left the next day's
-		start mismatched. Ordering by (recorded_at, name) is the order the
-		dashboard's "latest reading per meter" and the counter recompute use, so
-		all three agree on what "previous" means.
+		start mismatched.
 		"""
 		rows = frappe.get_all(
 			"Meter Reading",
 			filters={"meter": self.meter, "name": ["!=", self.name]},
-			fields=["name", "start_reading", "end_reading", "recorded_at"],
-			order_by="recorded_at asc, name asc",
+			fields=["name", "shift", "start_reading", "end_reading", "recorded_at"],
 		)
-		key = (str(self.recorded_at or ""), self.name)
+		dates = self._shift_dates([r.shift for r in rows] + [self.shift])
+		my_key = self._chronology_key(dates, self.name, self.shift, self.recorded_at)
+
 		before = None
 		after = None
+		before_key = None
+		after_key = None
+		# get_all gives no ordering guarantee, so the closest row on each side is
+		# chosen by key, not by position in the result.
 		for row in rows:
-			if (str(row.recorded_at or ""), row.name) < key:
-				before = row  # ascending order: the last one below us wins
-			elif after is None:
-				after = row  # …and the first one above us
+			key = self._chronology_key(dates, row.name, row.shift, row.recorded_at)
+			if key < my_key:
+				if before_key is None or key > before_key:
+					before, before_key = row, key
+			elif after_key is None or key < after_key:
+				after, after_key = row, key
 		return before, after
 
 	def _require_reason(self, message):
@@ -175,11 +201,15 @@ class MeterReading(Document):
 		# they must not zero a counter an operator already established.
 		# Plain SQL: the ["is", "set"] filter is rewritten to `<> ''`, which
 		# Postgres rejects on a numeric column.
+		# Ordered by the reading's DAY (its shift) first: `recorded_at` is the
+		# typing time, so backfilled days entered out of order used to drag the
+		# counter to an older day's end.
 		rows = frappe.db.sql(
 			"""
-			select end_reading from `tabMeter Reading`
-			where meter = %s and end_reading is not null and end_reading != 0
-			order by recorded_at desc, name desc limit 1
+			select r.end_reading from `tabMeter Reading` r
+			left join `tabShift` s on s.name = r.shift
+			where r.meter = %s and r.end_reading is not null and r.end_reading != 0
+			order by coalesce(s.date::text, '') desc, r.recorded_at desc, r.name desc limit 1
 			""",
 			(self.meter,),
 		)
