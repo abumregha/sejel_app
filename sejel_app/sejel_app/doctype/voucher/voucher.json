@@ -3,7 +3,14 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["shift", "category", "count", "total_value", "is_cancelled"],
+ "field_order": [
+  "shift",
+  "category",
+  "count",
+  "total_value",
+  "is_cancelled",
+  "income_request"
+ ],
  "fields": [
   {
    "fieldname": "shift",
@@ -34,6 +41,14 @@
    "in_list_view": 1,
    "label": "Total Value",
    "options": "currency:LYD"
+  },
+  {
+   "fieldname": "income_request",
+   "fieldtype": "Data",
+   "label": "طلب الإدخال",
+   "insert_after": "total_value",
+   "read_only": 1,
+   "description": "معرّف طلب الإدخال — يمنع تكرار البنود عند إعادة الحفظ"
   },
   {
    "default": "0",

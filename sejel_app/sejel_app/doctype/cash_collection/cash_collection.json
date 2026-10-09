@@ -3,7 +3,18 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["shift", "amount", "time", "received_by", "reference", "notes", "is_cancelled", "cancelled_at", "cancelled_by"],
+ "field_order": [
+  "shift",
+  "amount",
+  "time",
+  "received_by",
+  "reference",
+  "notes",
+  "is_cancelled",
+  "cancelled_at",
+  "cancelled_by",
+  "income_request"
+ ],
  "fields": [
   {
    "fieldname": "shift",
@@ -34,6 +45,14 @@
    "fieldtype": "Link",
    "label": "Received By",
    "options": "User"
+  },
+  {
+   "fieldname": "income_request",
+   "fieldtype": "Data",
+   "label": "طلب الإدخال",
+   "insert_after": "received_by",
+   "read_only": 1,
+   "description": "معرّف طلب الإدخال — يمنع تكرار البنود عند إعادة الحفظ"
   },
   {
    "fieldname": "reference",
