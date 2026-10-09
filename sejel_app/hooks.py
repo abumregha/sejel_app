@@ -112,7 +112,12 @@ before_request = ["sejel_app.error_logging.patch_once"]
 # ------------
 
 # before_install = "sejel_app.install.before_install"
-# after_install = "sejel_app.install.after_install"
+# after_install — and after_migrate — guarantee `User.sejel_station` exists.
+# Without it a fresh `bench new-site --install-app sejel_app` leaves the column
+# missing (the patch log claims it ran) and every station-scoped request 500s
+# for supervisors. See sejel_app/tests/test_user_station_binding.py.
+after_install = "sejel_app.install.after_install"
+after_migrate = "sejel_app.install.after_migrate"
 
 # Uninstallation
 # ------------

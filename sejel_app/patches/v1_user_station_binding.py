@@ -1,22 +1,14 @@
 import frappe
-from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 
 
 def execute():
 	"""User→Station binding for supervisor scoping (docs/DASHBOARD_REDESIGN_PROMPT.md §3.1).
 
-	Idempotent: create_custom_field no-ops when the field already exists.
+	Kept for sites whose patch log predates the install hooks; the field
+	definition itself now lives in sejel_app/install.py, which after_install and
+	after_migrate call on every site (a fresh install once recorded this patch as
+	done while the Custom Field never survived the install transaction).
 	"""
-	create_custom_field(
-		"User",
-		{
-			"fieldname": "sejel_station",
-			"fieldtype": "Link",
-			"options": "Station",
-			"label": "Sejel Station",
-			"insert_after": "mobile_no",
-			"description": "المحطة المرتبطة بهذا المستخدم (المشرف/العامل). يُترك فارغاً للمالك والإدارة.",
-		},
-		ignore_validate=True,
-	)
-	frappe.db.commit()
+	from sejel_app.install import ensure_user_station_binding
+
+	ensure_user_station_binding()
