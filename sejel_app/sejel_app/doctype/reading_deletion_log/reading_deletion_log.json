@@ -1,0 +1,183 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-10-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "reading",
+  "meter",
+  "meter_code",
+  "station",
+  "station_name",
+  "shift",
+  "shift_date",
+  "recorded_at",
+  "start_reading",
+  "end_reading",
+  "liters_sold",
+  "is_opening",
+  "exception_type",
+  "notes",
+  "deleted_by",
+  "deleted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "reading",
+   "fieldtype": "Data",
+   "label": "معرّف القراءة المحذوفة",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "meter",
+   "fieldtype": "Link",
+   "options": "Meter",
+   "label": "العداد",
+   "read_only": 1
+  },
+  {
+   "fieldname": "meter_code",
+   "fieldtype": "Data",
+   "label": "كود العداد",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "station",
+   "fieldtype": "Link",
+   "options": "Station",
+   "label": "المحطة",
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "station_name",
+   "fieldtype": "Data",
+   "label": "اسم المحطة",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Data",
+   "label": "المناوبة",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shift_date",
+   "fieldtype": "Date",
+   "label": "تاريخ اليوم",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "recorded_at",
+   "fieldtype": "Datetime",
+   "label": "وقت التسجيل الأصلي",
+   "read_only": 1
+  },
+  {
+   "fieldname": "start_reading",
+   "fieldtype": "Float",
+   "label": "القراءة السابقة",
+   "read_only": 1
+  },
+  {
+   "fieldname": "end_reading",
+   "fieldtype": "Float",
+   "label": "القراءة الحالية",
+   "read_only": 1
+  },
+  {
+   "fieldname": "liters_sold",
+   "fieldtype": "Float",
+   "label": "اللترات المحسوبة",
+   "read_only": 1
+  },
+  {
+   "fieldname": "is_opening",
+   "fieldtype": "Check",
+   "label": "قراءة افتتاحية",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exception_type",
+   "fieldtype": "Data",
+   "label": "نوع الاستثناء",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "السبب / ملاحظات",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deleted_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "حذف بواسطة",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "deleted_at",
+   "fieldtype": "Datetime",
+   "label": "وقت الحذف",
+   "in_list_view": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sejel App",
+ "name": "Reading Deletion Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sejel Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sejel Finance",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "deleted_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

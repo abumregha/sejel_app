@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import now_datetime
 
 
 class MeterReading(Document):
@@ -217,7 +218,52 @@ class MeterReading(Document):
 			frappe.db.set_value("Meter", self.meter, "current_reading", rows[0][0])
 		self._refresh_reconciliation()
 
+	def _log_deletion(self):
+		"""Leave a permanent trace of this reading before it disappears.
+
+		Frappe deletes a document's `Version` rows with it, so after a delete
+		nothing could answer "who removed this reading, when, and what did it
+		say?" (browser acceptance test 2026-10-09). The log is a separate
+		append-only doctype, so it outlives the reading — and it rolls back with
+		the delete if the delete itself fails.
+		"""
+		if not self.meter:
+			return
+
+		station = ""
+		meter_code = ""
+		if self.shift:
+			shift = frappe.db.get_value(
+				"Shift", self.shift, ["station", "date"], as_dict=True
+			)
+			if shift:
+				station = shift.station or ""
+		meter_code = frappe.db.get_value("Meter", self.meter, "meter_code") or ""
+
+		frappe.get_doc(
+			{
+				"doctype": "Reading Deletion Log",
+				"reading": self.name,
+				"meter": self.meter,
+				"meter_code": meter_code,
+				"station": station or None,
+				"station_name": frappe.db.get_value("Station", station, "station_name") if station else "",
+				"shift": self.shift,
+				"shift_date": frappe.db.get_value("Shift", self.shift, "date") if self.shift else None,
+				"recorded_at": self.recorded_at,
+				"start_reading": self.start_reading,
+				"end_reading": self.end_reading,
+				"liters_sold": self.liters_sold,
+				"is_opening": 1 if self.is_opening else 0,
+				"exception_type": self.exception_type,
+				"notes": self.notes,
+				"deleted_by": frappe.session.user,
+				"deleted_at": now_datetime(),
+			}
+		).insert(ignore_permissions=True)
+
 	def on_trash(self):
+		self._log_deletion()
 		# Meter.current_reading is a denormalised copy of the LAST reading, so
 		# deleting a reading without rolling it back leaves the next cycle's
 		# "previous reading" pointing at a row that no longer exists — the
