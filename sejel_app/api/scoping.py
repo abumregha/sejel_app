@@ -110,30 +110,45 @@ STATION_CHILD_RESOURCES = {
 GLOBAL_DOCTYPES = {"Fuel Type", "Fuel Price", "Marketing Company", "Voucher Category"}
 
 
+def _doc_field(doctype, name, field):
+	"""Read one field, but only if the doctype actually carries it.
+
+	Meter Reading's station is its SHIFT's station — the doctype has no
+	`station` column of its own. Asking for one anyway is an UndefinedColumn
+	that surfaced as HTTP 500 on every reading correction made by a
+	station-bound user: admins and managers skip the scoping check entirely, so
+	the only people who could correct a reading were the people who never saw
+	the failure (live report 2026-10-10).
+	"""
+	if not frappe.get_meta(doctype).has_field(field):
+		return None
+	return frappe.db.get_value(doctype, name, field)
+
+
 def _resolve_doc_station(doctype, name):
 	"""Find the station a document belongs to, following its parent chain."""
 	if doctype == "Meter":
 		# Meter has no station: meter → machine → island → station
-		machine = frappe.db.get_value("Meter", name, "machine")
-		island = frappe.db.get_value("Machine", machine, "island") if machine else None
-		return frappe.db.get_value("Island", island, "station") if island else None
+		machine = _doc_field("Meter", name, "machine")
+		island = _doc_field("Machine", machine, "island") if machine else None
+		return _doc_field("Island", island, "station") if island else None
 	if doctype == "Tank Reading":
-		tank = frappe.db.get_value("Tank Reading", name, "tank")
-		return frappe.db.get_value("Tank", tank, "station") if tank else None
+		tank = _doc_field("Tank Reading", name, "tank")
+		return _doc_field("Tank", tank, "station") if tank else None
 	if doctype == "Shortage Claim":
-		delivery = frappe.db.get_value("Shortage Claim", name, "delivery")
-		return frappe.db.get_value("Delivery", delivery, "station") if delivery else None
-	doc_station = frappe.db.get_value(doctype, name, "station")
+		delivery = _doc_field("Shortage Claim", name, "delivery")
+		return _doc_field("Delivery", delivery, "station") if delivery else None
+	doc_station = _doc_field(doctype, name, "station")
 	if doc_station is None:
 		# child-of-shift docs (cash collections, vouchers, POS, readings):
 		# resolve through the parent shift's station
-		parent = frappe.db.get_value(doctype, name, "shift")
+		parent = _doc_field(doctype, name, "shift")
 		if parent:
-			doc_station = frappe.db.get_value("Shift", parent, "station")
+			doc_station = _doc_field("Shift", parent, "station")
 	if doc_station is None and doctype == "Shift Fuel Summary":
-		recon = frappe.db.get_value("Shift Fuel Summary", name, "reconciliation")
+		recon = _doc_field("Shift Fuel Summary", name, "reconciliation")
 		if recon:
-			doc_station = frappe.db.get_value("Reconciliation", recon, "station")
+			doc_station = _doc_field("Reconciliation", recon, "station")
 	return doc_station
 
 
