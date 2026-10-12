@@ -9,6 +9,43 @@ class Shift(Document):
 	def crosses_midnight(self):
 		return self.end_time is not None and self.end_time <= self.start_time
 
+	def validate(self):
+		LOCKED_FIELDS = {
+			"submitted": ["date", "start_time", "end_time", "status"],
+			"closed": ["shift_name", "station", "definition", "employee", "island",
+					   "date", "start_time", "end_time", "status"],
+		}
+		locked = LOCKED_FIELDS.get(self.status, [])
+		if not locked:
+			return
+		if self.get_db_value:
+			db_status = self.get_db_value("status")
+			if db_status and db_status != self.status:
+				locked = [f for f in locked if f != "status"]
+			for field in locked:
+				db_val = self.get_db_value(field)
+				cur_val = self.get(field)
+				if str(db_val or "") != str(cur_val or ""):
+					frappe.throw(
+						_("لا يمكن تعديل حقل «{0}» في مناوبة بحالة «{1}»").format(
+							_(self.meta.get_label(field)), _(self.status)
+						),
+						frappe.ValidationError,
+					)
+
+	def _log_correction(self, field_changed, old_value, new_value, reason=""):
+		log = frappe.new_doc("Shift Correction Log")
+		log.parent = self.name
+		log.parenttype = "Shift"
+		log.parentfield = "correction_log"
+		log.corrected_by = frappe.session.user
+		log.corrected_at = now_datetime()
+		log.field_changed = field_changed
+		log.old_value = str(old_value) if old_value else ""
+		log.new_value = str(new_value) if new_value else ""
+		log.reason = reason
+		log.insert(ignore_permissions=True)
+
 	def close_shift(self):
 		"""Close shift and create reconciliation."""
 		if self.status != "submitted":
