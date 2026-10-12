@@ -1,0 +1,20 @@
+{
+  "autoname": "format:CORR-{YYYY}{MM}{DD}-{####}",
+  "creation": "2026-10-12 00:00:00",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["corrected_by", "corrected_at", "field_changed", "old_value", "new_value", "reason"],
+  "fields": [
+    {"fieldname": "corrected_by", "fieldtype": "Link", "label": "Corrected By", "options": "User", "read_only": 1},
+    {"fieldname": "corrected_at", "fieldtype": "Datetime", "label": "Corrected At", "read_only": 1},
+    {"fieldname": "field_changed", "fieldtype": "Data", "label": "Field Changed", "read_only": 1},
+    {"fieldname": "old_value", "fieldtype": "Data", "label": "Old Value", "read_only": 1},
+    {"fieldname": "new_value", "fieldtype": "Data", "label": "New Value", "read_only": 1},
+    {"fieldname": "reason", "fieldtype": "Data", "label": "Reason", "read_only": 1}
+  ],
+  "istable": 1,
+  "modified": "2026-10-12 00:00:00",
+  "module": "Sejel App",
+  "name": "Shift Correction Log",
+  "owner": "Administrator"
+}
