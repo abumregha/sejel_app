@@ -739,6 +739,24 @@ def _setup_station_impl(body):
 
 
 @frappe.whitelist()
+def reopen_shift(name):
+	shift = frappe.get_doc("Shift", name)
+	shift.reopen_shift()
+	return {"ok": True, "message": "تمت إعادة فتح المناوبة"}
+
+
+@frappe.whitelist()
+def shift_corrections(name):
+	logs = frappe.get_all(
+		"Shift Correction Log",
+		filters={"parent": name, "parenttype": "Shift"},
+		fields=["corrected_by", "corrected_at", "field_changed", "old_value", "new_value", "reason"],
+		order_by="corrected_at desc",
+	)
+	return {"results": logs}
+
+
+@frappe.whitelist()
 def setup_station():
 	"""Atomic station setup for the Vue SPA wizard.
 	POST /api/setup-station/ with JSON body (see _setup_station_impl).
