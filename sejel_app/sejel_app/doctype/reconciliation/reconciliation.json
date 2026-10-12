@@ -3,7 +3,7 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "confirmed_by", "confirmed_at"],
+  "field_order": ["shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "confirmed_by", "confirmed_at", "is_archived", "archived_at"],
  "fields": [
   {
    "fieldname": "shift",
@@ -101,12 +101,25 @@
    "label": "Confirmed By",
    "options": "User"
   },
-  {
-   "fieldname": "confirmed_at",
-   "fieldtype": "Datetime",
-   "label": "Confirmed At"
-  }
- ],
+   {
+    "fieldname": "confirmed_at",
+    "fieldtype": "Datetime",
+    "label": "Confirmed At"
+   },
+   {
+    "fieldname": "is_archived",
+    "fieldtype": "Check",
+    "default": "0",
+    "label": "Is Archived",
+    "read_only": 1
+   },
+   {
+    "fieldname": "archived_at",
+    "fieldtype": "Datetime",
+    "label": "Archived At",
+    "read_only": 1
+   }
+  ],
  "index_web_pages_for_search": 0,
  "links": [
   {
