@@ -11,27 +11,23 @@ class Shift(Document):
 
 	def validate(self):
 		LOCKED_FIELDS = {
-			"submitted": ["date", "start_time", "end_time", "status"],
+			"submitted": ["date", "start_time", "end_time"],
 			"closed": ["shift_name", "station", "definition", "employee", "island",
-					   "date", "start_time", "end_time", "status"],
+					   "date", "start_time", "end_time"],
 		}
 		locked = LOCKED_FIELDS.get(self.status, [])
 		if not locked:
 			return
-		if self.get_db_value:
-			db_status = self.get_db_value("status")
-			if db_status and db_status != self.status:
-				locked = [f for f in locked if f != "status"]
-			for field in locked:
-				db_val = self.get_db_value(field)
-				cur_val = self.get(field)
-				if str(db_val or "") != str(cur_val or ""):
-					frappe.throw(
-						_("لا يمكن تعديل حقل «{0}» في مناوبة بحالة «{1}»").format(
-							_(self.meta.get_label(field)), _(self.status)
-						),
-						frappe.ValidationError,
-					)
+		for field in locked:
+			db_val = self.get_db_value(field)
+			cur_val = self.get(field)
+			if str(db_val or "") != str(cur_val or ""):
+				frappe.throw(
+					_("لا يمكن تعديل حقل «{0}» في مناوبة بحالة «{1}»").format(
+						_(self.meta.get_label(field)), _(self.status)
+					),
+					frappe.ValidationError,
+				)
 
 	def _log_correction(self, field_changed, old_value, new_value, reason=""):
 		log = frappe.new_doc("Shift Correction Log")
@@ -55,6 +51,12 @@ class Shift(Document):
 		self.closed_by = frappe.session.user
 		self.closed_at = now_datetime()
 		self.save()
+
+		recon_name = frappe.db.exists("Reconciliation", {"shift": self.name, "is_archived": 0})
+		if recon_name:
+			frappe.delete_doc("Reconciliation", recon_name, ignore_permissions=True)
+			for row in frappe.get_all("Shift Fuel Summary", filters={"reconciliation": recon_name}, fields=["name"]):
+				frappe.delete_doc("Shift Fuel Summary", row.name, ignore_permissions=True)
 
 		self._validate_prices_configured()
 		self.create_reconciliation()
