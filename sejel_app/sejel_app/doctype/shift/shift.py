@@ -59,6 +59,23 @@ class Shift(Document):
 		self._validate_prices_configured()
 		self.create_reconciliation()
 
+	def reopen_shift(self):
+		"""Reopen a submitted or closed shift for corrections. Admin/owner only."""
+		if self.status not in ("submitted", "closed"):
+			frappe.throw(_("المناوبة مفتوحة بالفعل ولا تحتاج إعادة فتح"))
+		if "System Manager" not in frappe.get_roles() and "Owner" not in frappe.get_roles():
+			frappe.throw(_("فقط المالك أو المدير يمكنه إعادة فتح المناوبة"))
+		if self.status == "closed":
+			recon_name = frappe.db.exists("Reconciliation", {"shift": self.name})
+			if recon_name:
+				frappe.db.set_value("Reconciliation", recon_name,
+					{"is_archived": 1, "archived_at": now_datetime()})
+		self.status = "open"
+		self.closed_by = None
+		self.closed_at = None
+		self.save(ignore_permissions=True)
+		self._log_correction("status", self.status, "open", "إعادة فتح المناوبة للتصحيح")
+
 	def create_reconciliation(self):
 		"""Create financial reconciliation for this shift.
 
