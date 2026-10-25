@@ -34,8 +34,11 @@ RESOURCES = {
 	"voucher-settlements": ("Voucher Settlement", ["name", "station", "submission_date", "total_value", "total_count", "denom_5", "denom_6", "denom_7", "denom_8", "status", "paid_amount", "modified"]),
 	"reconciliations": ("Reconciliation", ["name", "shift", "station", "total_liters", "expected_sales", "total_cash", "total_vouchers", "total_pos", "total_collection", "total_expenses", "net_cash", "difference", "difference_type", "status", "modified"]),
 	"shift-fuel-summaries": ("Shift Fuel Summary", ["name", "reconciliation", "fuel_type", "liters_sold", "unit_price", "expected_sales", "modified"]),
-	"deliveries": ("Delivery", ["name", "station", "fuel_type", "supplier", "expected_quantity", "received_quantity", "shortage", "invoice_number", "payment_status", "status", "order_date", "modified"]),
+	"deliveries": ("Delivery", ["name", "station", "fuel_type", "supplier", "expected_quantity", "received_quantity", "shortage", "invoice_number", "payment_status", "status", "order_date", "arrival_date", "scheduled_date", "is_unscheduled", "modified"]),
 	"delivery-requests": ("Delivery Request", ["name", "station", "fuel_type", "requested_quantity", "priority", "status", "expected_delivery_date", "modified"]),
+	"station-deposits": ("Station Deposit", ["name", "station", "invoice_number", "invoice_date", "station_account_number", "sales_office", "financial_receipt_number", "fuel_product", "deposit_amount", "allocated_amount", "balance", "reference", "notes", "modified"]),
+	"shipment-schedules": ("Shipment Schedule", ["name", "station", "deposit", "invoice_number", "fuel_type", "quantity", "expected_shipping_date", "status", "unit_price", "total_amount", "delivery", "serial_number", "notes", "modified"]),
+	"stock-entries": ("Stock Entry", ["name", "station", "entry_type", "source", "total_amount", "date", "status", "remarks", "modified"]),
 	"tank-readings": ("Tank Reading", ["name", "tank", "reading_level", "reading_type", "recorded_at", "recorded_by", "notes", "modified"]),
 	"tank-transfers": ("Tank Transfer", ["name", "station", "from_tank", "to_tank", "fuel_type", "quantity", "reason", "status", "transfer_date", "modified"]),
 	"fuel-reconciliations": ("Fuel Reconciliation", ["name", "tank", "station", "date", "received_quantity", "transferred_in", "transferred_out", "sold_quantity", "theoretical_level", "actual_level", "variance", "variance_type", "status", "modified"]),
@@ -762,3 +765,52 @@ def setup_station():
 	POST /api/setup-station/ with JSON body (see _setup_station_impl).
 	"""
 	return _setup_station_impl(_get_body())
+
+
+@frappe.whitelist()
+def monthly_balance(year, month):
+	"""Monthly balance report: deposits, shipment costs, rent, running balance.
+	GET /api/reports/balance/?year=YYYY&month=MM
+	"""
+	return reports_mod.monthly_balance_report(year, month)
+
+
+@frappe.whitelist()
+def tank_summary(station=None, **kwargs):
+	"""Total available fuel volume across all tanks for a station.
+	GET /api/station-tank-summary/?station=<id>
+	"""
+	station = station or frappe.form_dict.get("station") or (frappe.request.args.get("station") if getattr(frappe, "request", None) else None)
+	return reports_mod.station_tank_summary(station)
+
+
+@frappe.whitelist()
+def delivery_print(station=None, start_date=None, end_date=None, **kwargs):
+	"""Printable delivery report for the marketing company.
+	GET /api/delivery-print/?station=<id>&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+	"""
+	station = station or frappe.form_dict.get("station") or (frappe.request.args.get("station") if getattr(frappe, "request", None) else None)
+	start_date = start_date or frappe.form_dict.get("start_date") or (frappe.request.args.get("start_date") if getattr(frappe, "request", None) else None)
+	end_date = end_date or frappe.form_dict.get("end_date") or (frappe.request.args.get("end_date") if getattr(frappe, "request", None) else None)
+	return reports_mod.delivery_print_report(station, start_date, end_date)
+
+
+@frappe.whitelist()
+def total_received(station=None, **kwargs):
+	"""Total received fuel quantity tracked separately from tank readings.
+	GET /api/total-received/?station=<id>
+	"""
+	station = station or frappe.form_dict.get("station") or (frappe.request.args.get("station") if getattr(frappe, "request", None) else None)
+	return reports_mod.station_total_received(station)
+
+
+@frappe.whitelist()
+def monthly_shipments(station=None, year=None, month=None, **kwargs):
+	"""Monthly shipment report for marketing company reconciliations.
+	GET /api/reports/monthly-shipments/?station=<id>&year=YYYY&month=MM
+	"""
+	station = station or frappe.form_dict.get("station") or (frappe.request.args.get("station") if getattr(frappe, "request", None) else None)
+	year = year or frappe.form_dict.get("year") or (frappe.request.args.get("year") if getattr(frappe, "request", None) else None)
+	month = month or frappe.form_dict.get("month") or (frappe.request.args.get("month") if getattr(frappe, "request", None) else None)
+	return reports_mod.monthly_shipments_report(station, year, month)
+

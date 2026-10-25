@@ -350,3 +350,360 @@ def export_station_excel(view="station", name=""):
 	resp.headers["Content-Disposition"] = "attachment; filename=sejel-{}-{}.xlsx".format(view, name.replace("/", "-"))
 	return resp
 
+
+def monthly_balance_report(year, month):
+	"""Monthly balance report: deposits, shipment costs, rent, and running balance.
+
+	Combines Station Deposit records with Stock Entry deductions (delivery + rent)
+	to show the prepaid balance position for each station at month end.
+	"""
+	year, month = cint(year), cint(month)
+	if not year or not month or month < 1 or month > 12:
+		frappe.throw("Year and month required")
+
+	import calendar
+	last_day = calendar.monthrange(year, month)[1]
+	start = getdate("{}-{:02d}-01".format(year, month))
+	end = getdate("{}-{:02d}-{:02d}".format(year, month, last_day))
+
+	stations = _scoped_station_list()
+	if not stations:
+		return {"year": year, "month": month, "stations": [], "totals": {}}
+
+	station_rows = []
+	totals = {"deposits": 0, "shipment_costs": 0, "rent": 0, "adjustments": 0, "balance": 0}
+
+	for station in stations:
+		deposits = frappe.get_all(
+			"Station Deposit",
+			filters=[
+				["station", "=", station],
+				["invoice_date", ">=", str(start)],
+				["invoice_date", "<=", str(end)],
+			],
+			fields=["deposit_amount", "invoice_date", "invoice_number", "reference"],
+		)
+		total_deposits = sum(float(d.deposit_amount or 0) for d in deposits)
+
+		stock_entries = frappe.get_all(
+			"Stock Entry",
+			filters=[
+				["station", "=", station],
+				["date", ">=", str(start)],
+				["date", "<=", str(end)],
+				["status", "=", "submitted"],
+			],
+			fields=["entry_type", "total_amount"],
+		)
+		shipment_costs = sum(float(e.total_amount or 0) for e in stock_entries if e.entry_type == "delivery")
+		rent = sum(float(e.total_amount or 0) for e in stock_entries if e.entry_type == "rent")
+		adjustments = sum(float(e.total_amount or 0) for e in stock_entries if e.entry_type == "adjustment")
+
+		total_deductions = shipment_costs + rent + adjustments
+		running_balance = total_deposits - total_deductions
+
+		station_meta = frappe.db.get_value("Station", station, ["station_name", "show_rent"], as_dict=True)
+		show_rent = station_meta.get("show_rent", 1) if station_meta else 1
+
+		station_rows.append({
+			"station": station,
+			"station_name": _station_name(station),
+			"deposits": total_deposits,
+			"shipment_costs": shipment_costs,
+			"rent": rent if show_rent else 0,
+			"rent_hidden": not show_rent,
+			"adjustments": adjustments,
+			"total_deductions": total_deductions,
+			"running_balance": running_balance,
+		})
+		totals["deposits"] += total_deposits
+		totals["shipment_costs"] += shipment_costs
+		totals["rent"] += rent if show_rent else 0
+		totals["adjustments"] += adjustments
+		totals["balance"] += running_balance
+
+	return {
+		"year": year,
+		"month": month,
+		"stations": station_rows,
+		"totals": totals,
+	}
+
+
+def station_tank_summary(station=None):
+	"""Total available fuel volume across all tanks for a station.
+
+	Returns per-tank breakdown plus station-level totals per fuel type.
+	"""
+	if not station:
+		station = scoped_station()
+	if not station:
+		st = frappe.get_all("Station", filters={"status": "active"}, limit=1, pluck="name")
+		if st:
+			station = st[0]
+	if not station:
+		frappe.throw("Station required")
+
+	tanks = frappe.get_all(
+		"Tank",
+		filters={"station": station},
+		fields=["name", "tank_name", "fuel_type", "capacity", "current_level"],
+		order_by="fuel_type, tank_name",
+	)
+
+	fuel_type_totals = {}
+	for t in tanks:
+		ft = t.fuel_type or "unknown"
+		if ft not in fuel_type_totals:
+			fuel_type_totals[ft] = {"fuel_type": ft, "total_capacity": 0, "total_current": 0, "tank_count": 0}
+		fuel_type_totals[ft]["total_capacity"] += float(t.capacity or 0)
+		fuel_type_totals[ft]["total_current"] += float(t.current_level or 0)
+		fuel_type_totals[ft]["tank_count"] += 1
+
+	return {
+		"station": station,
+		"station_name": _station_name(station),
+		"tanks": tanks,
+		"fuel_type_totals": list(fuel_type_totals.values()),
+		"grand_total_current": sum(float(t.current_level or 0) for t in tanks),
+		"grand_total_capacity": sum(float(t.capacity or 0) for t in tanks),
+	}
+
+
+def delivery_print_report(station=None, start_date=None, end_date=None):
+	"""Printable report of all delivered shipments for the marketing company.
+
+	Shows: invoice number, actual delivery date, quantity received, tank.
+	Flags extra shipments as "مرحلة" (transit) and undelivered as "undelivered".
+	"""
+	if not station:
+		station = scoped_station()
+	if not station:
+		st = frappe.get_all("Station", filters={"status": "active"}, limit=1, pluck="name")
+		if st:
+			station = st[0]
+	if not station:
+		frappe.throw("Station required")
+
+	filters = {"station": station, "status": ["in", ["received", "undelivered", "transit"]]}
+	if start_date:
+		filters["arrival_date"] = [">=", start_date]
+	if end_date:
+		filters["arrival_date"] = ["<=", end_date]
+
+	deliveries = frappe.get_all(
+		"Delivery",
+		filters=filters,
+		fields=["name", "invoice_number", "arrival_date", "received_quantity",
+			"expected_quantity", "fuel_type", "tank", "is_unscheduled",
+			"status", "order_date", "scheduled_date"],
+		order_by="arrival_date desc",
+	)
+
+	tank_names = {}
+	for d in deliveries:
+		if d.tank and d.tank not in tank_names:
+			tank_names[d.tank] = frappe.db.get_value("Tank", d.tank, "tank_name") or d.tank
+
+	rows = []
+	for d in deliveries:
+		flag = ""
+		if d.is_unscheduled:
+			flag = "مرحلة"
+		elif d.status == "undelivered":
+			flag = "undelivered"
+		elif d.status == "transit":
+			flag = "transit"
+
+		rows.append({
+			"invoice_number": d.invoice_number or "—",
+			"delivery_date": str(d.arrival_date or "—"),
+			"order_date": str(d.order_date or "—"),
+			"scheduled_date": str(d.scheduled_date or "—"),
+			"fuel_type": d.fuel_type or "—",
+			"tank": tank_names.get(d.tank, d.tank or "—"),
+			"expected_quantity": float(d.expected_quantity or 0),
+			"received_quantity": float(d.received_quantity or 0),
+			"flag": flag,
+			"status": d.status,
+		})
+
+	return {
+		"station": station,
+		"station_name": _station_name(station),
+		"start_date": start_date,
+		"end_date": end_date,
+		"total_delivered": sum(1 for d in deliveries if d.status == "received"),
+		"total_undelivered": sum(1 for d in deliveries if d.status == "undelivered"),
+		"total_transit": sum(1 for d in deliveries if d.status == "transit"),
+		"total_quantity_received": sum(float(d.received_quantity or 0) for d in deliveries),
+		"deliveries": rows,
+	}
+
+
+def station_total_received(station=None):
+	"""Total received fuel quantity tracked separately from tank-level readings.
+
+	For late deliveries where workers can't measure accurately, this tracks
+	the total received quantity without requiring pre/post tank readings.
+	"""
+	if not station:
+		station = scoped_station()
+	if not station:
+		st = frappe.get_all("Station", filters={"status": "active"}, limit=1, pluck="name")
+		if st:
+			station = st[0]
+	if not station:
+		frappe.throw("Station required")
+
+	received = frappe.db.sql(
+		"""SELECT COALESCE(SUM(received_quantity), 0) FROM `tabDelivery`
+		WHERE station = %s AND status = 'received' AND docstatus = 1""",
+		(station,),
+	)
+	total_received = received[0][0] if received else 0
+
+	by_fuel_type = frappe.db.sql(
+		"""SELECT fuel_type, COALESCE(SUM(received_quantity), 0) AS total
+		FROM `tabDelivery`
+		WHERE station = %s AND status = 'received' AND docstatus = 1
+		GROUP BY fuel_type""",
+		(station,),
+		as_dict=True,
+	)
+
+	return {
+		"station": station,
+		"station_name": _station_name(station),
+		"total_received": total_received,
+		"by_fuel_type": [{"fuel_type": r.fuel_type, "total": float(r.total or 0)} for r in by_fuel_type],
+	}
+
+
+def monthly_shipments_report(station=None, year=None, month=None):
+	"""Monthly shipment report for a station.
+
+	Shows scheduled shipments and deliveries, tracking delivered, undelivered,
+	and transit/extra shipments for marketing company reconciliations.
+	"""
+	if not station:
+		station = scoped_station()
+	if not station:
+		st = frappe.get_all("Station", filters={"status": "active"}, limit=1, pluck="name")
+		if st:
+			station = st[0]
+	if not station:
+		frappe.throw("Station required")
+
+	from frappe.utils import now_datetime
+	import calendar
+	now = now_datetime()
+	year = cint(year) or now.year
+	month = cint(month) or now.month
+
+	last_day = calendar.monthrange(year, month)[1]
+	start = getdate("{}-{:02d}-01".format(year, month))
+	end = getdate("{}-{:02d}-{:02d}".format(year, month, last_day))
+
+	schedules = frappe.get_all(
+		"Shipment Schedule",
+		filters=[
+			["station", "=", station],
+			["expected_shipping_date", ">=", str(start)],
+			["expected_shipping_date", "<=", str(end)],
+		],
+		fields=[
+			"name", "invoice_number", "expected_shipping_date", "fuel_type",
+			"quantity", "status", "delivery", "unit_price", "total_amount", "serial_number",
+		],
+		order_by="expected_shipping_date asc",
+	)
+
+	deliveries = frappe.get_all(
+		"Delivery",
+		filters=[
+			["station", "=", station],
+			["order_date", ">=", str(start)],
+			["order_date", "<=", str(end)],
+		],
+		fields=[
+			"name", "invoice_number", "arrival_date", "order_date", "scheduled_date",
+			"fuel_type", "tank", "expected_quantity", "received_quantity",
+			"status", "is_unscheduled",
+		],
+		order_by="order_date asc",
+	)
+
+	tank_names = {}
+	for d in deliveries:
+		if d.tank and d.tank not in tank_names:
+			tank_names[d.tank] = frappe.db.get_value("Tank", d.tank, "tank_name") or d.tank
+
+	delivery_by_name = {d.name: d for d in deliveries}
+	matched_delivery_names = set()
+
+	rows = []
+	for s in schedules:
+		deliv = delivery_by_name.get(s.delivery) if s.delivery else None
+		if deliv:
+			matched_delivery_names.add(deliv.name)
+
+		flag = ""
+		if s.status == "undelivered":
+			flag = "undelivered"
+		elif s.status == "transit":
+			flag = "transit"
+		elif deliv and deliv.is_unscheduled:
+			flag = "مرحلة"
+
+		delivery_date = str(deliv.arrival_date) if deliv and deliv.arrival_date else ("—" if s.status != "delivered" else str(s.expected_shipping_date))
+		tank = tank_names.get(deliv.tank, deliv.tank or "—") if deliv else "—"
+		recv_qty = float(deliv.received_quantity or 0) if deliv else (float(s.quantity or 0) if s.status == "delivered" else 0)
+
+		rows.append({
+			"invoice_number": s.invoice_number or "—",
+			"scheduled_date": str(s.expected_shipping_date or "—"),
+			"delivery_date": delivery_date,
+			"fuel_type": s.fuel_type or "—",
+			"tank": tank,
+			"expected_quantity": float(s.quantity or 0),
+			"received_quantity": recv_qty,
+			"status": s.status,
+			"flag": flag,
+		})
+
+	for d in deliveries:
+		if d.name not in matched_delivery_names:
+			flag = "مرحلة" if d.is_unscheduled else ("undelivered" if d.status == "undelivered" else ("transit" if d.status == "transit" else ""))
+			rows.append({
+				"invoice_number": d.invoice_number or "—",
+				"scheduled_date": str(d.scheduled_date or d.order_date or "—"),
+				"delivery_date": str(d.arrival_date or "—"),
+				"fuel_type": d.fuel_type or "—",
+				"tank": tank_names.get(d.tank, d.tank or "—"),
+				"expected_quantity": float(d.expected_quantity or 0),
+				"received_quantity": float(d.received_quantity or 0),
+				"status": d.status,
+				"flag": flag,
+			})
+
+	total_sched = len(rows)
+	total_deliv = sum(1 for r in rows if r["status"] in ("delivered", "received"))
+	total_undeliv = sum(1 for r in rows if r["status"] == "undelivered" or r["flag"] == "undelivered")
+	total_transit = sum(1 for r in rows if r["status"] == "transit" or r["flag"] in ("transit", "مرحلة"))
+	total_qty = sum(r["received_quantity"] for r in rows)
+
+	return {
+		"station": station,
+		"station_name": _station_name(station),
+		"year": year,
+		"month": month,
+		"total_scheduled": total_sched,
+		"total_delivered": total_deliv,
+		"total_undelivered": total_undeliv,
+		"total_transit": total_transit,
+		"total_quantity_received": total_qty,
+		"shipments": rows,
+	}
+
+

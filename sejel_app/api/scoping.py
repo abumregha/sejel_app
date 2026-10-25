@@ -26,7 +26,7 @@ DIRECT_STATION_DOCTYPES = {
 	"Station", "Island", "Machine", "Tank", "Employee", "Shift Definition",
 	"Shift", "Expense", "Expense Category", "Voucher Settlement",
 	"Reconciliation", "Delivery", "Delivery Request", "Tank Transfer",
-	"Fuel Reconciliation",
+	"Fuel Reconciliation", "Station Deposit", "Shipment Schedule", "Stock Entry",
 }
 
 

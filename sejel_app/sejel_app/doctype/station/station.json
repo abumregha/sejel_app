@@ -4,22 +4,23 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": [
-  "station_name",
-  "address",
-  "status",
-  "relationship_type",
-  "marketing_company",
-  "cash_collection_mode",
-  "target_cash_amount",
-  "photo_meter_required",
-  "day_close_time",
-  "column_break_1",
-  "islands_count",
-  "machines_per_island",
-  "meters_per_machine",
-  "tanks_count"
- ],
+  "field_order": [
+    "station_name",
+    "address",
+    "status",
+    "relationship_type",
+    "marketing_company",
+    "cash_collection_mode",
+    "target_cash_amount",
+    "photo_meter_required",
+    "day_close_time",
+    "show_rent",
+    "column_break_1",
+    "islands_count",
+    "machines_per_island",
+    "meters_per_machine",
+    "tanks_count"
+  ],
  "fields": [
   {
    "fieldname": "station_name",
@@ -76,12 +77,19 @@
    "fieldtype": "Check",
    "label": "Photo Meter Required"
   },
-  {
-   "description": "Daily closing/reading-cycle boundary for this station (e.g. 23:00 or 11:00). The meter-reading period runs from this time one day to the same time the next day. Never hard-coded in business logic. Left empty it falls back to 23:00 and the screens say so.",
-   "fieldname": "day_close_time",
-   "fieldtype": "Time",
-   "label": "Day Close Time"
-  },
+    {
+      "description": "Daily closing/reading-cycle boundary for this station (e.g. 23:00 or 11:00). The meter-reading period runs from this time one day to the same time the next day. Never hard-coded in business logic. Left empty it falls back to 23:00 and the screens say so.",
+      "fieldname": "day_close_time",
+      "fieldtype": "Time",
+      "label": "Day Close Time"
+    },
+    {
+      "default": "1",
+      "fieldname": "show_rent",
+      "fieldtype": "Check",
+      "label": "Show Rent in Reports",
+      "description": "When enabled, rent expenses are visible in financial reports. Disable to keep rent accounting separate from gas accounting."
+    },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Section Break",

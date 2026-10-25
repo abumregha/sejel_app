@@ -3,7 +3,7 @@
  "creation": "2026-09-08 06:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["station", "tank", "fuel_type", "supplier", "requested_quantity", "expected_quantity", "received_quantity", "shortage", "order_date", "arrival_date", "pre_reading", "post_reading", "document_number", "invoice_number", "invoiced_amount", "paid_amount", "payment_date", "payment_reference", "payment_status", "status", "total_allocated", "remaining_on_truck"],
+  "field_order": ["station", "tank", "fuel_type", "supplier", "requested_quantity", "expected_quantity", "received_quantity", "shortage", "order_date", "arrival_date", "scheduled_date", "pre_reading", "post_reading", "document_number", "invoice_number", "invoiced_amount", "paid_amount", "payment_date", "payment_reference", "payment_status", "status", "is_unscheduled", "total_allocated", "remaining_on_truck"],
  "fields": [
   {
    "fieldname": "station",
@@ -67,11 +67,16 @@
    "label": "Order Date",
    "reqd": 1
   },
-  {
-   "fieldname": "arrival_date",
-   "fieldtype": "Datetime",
-   "label": "Arrival Date"
-  },
+    {
+      "fieldname": "arrival_date",
+      "fieldtype": "Datetime",
+      "label": "Arrival Date"
+    },
+    {
+      "fieldname": "scheduled_date",
+      "fieldtype": "Date",
+      "label": "Scheduled Date"
+    },
   {
    "fieldname": "pre_reading",
    "fieldtype": "Float",
@@ -132,8 +137,14 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "ordered\nreceived\nclaimed\nsettled\nclosed"
-  },
+      "options": "ordered\nreceived\nundelivered\ntransit\nclaimed\nsettled\nclosed"
+    },
+    {
+      "default": "0",
+      "fieldname": "is_unscheduled",
+      "fieldtype": "Check",
+      "label": "Unscheduled Shipment"
+    },
   {
    "default": "0",
    "fieldname": "total_allocated",

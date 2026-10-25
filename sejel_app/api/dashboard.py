@@ -398,6 +398,27 @@ def _single_station_payload(sid, date, role):
 			"link": f"/app/reconciliations/{rec.name}",
 		})
 
+	try:
+		scheds = frappe.get_all(
+			"Shipment Schedule",
+			filters={"station": sid, "status": ["in", ["scheduled", "dispatched"]]},
+			fields=["name", "expected_shipping_date", "fuel_type", "quantity", "invoice_number"],
+			order_by="expected_shipping_date asc",
+			limit=3,
+		)
+		for s in scheds:
+			alerts.append({
+				"type": "shipment_scheduled",
+				"severity": "info",
+				"message": "شحنة مجدولة: {0:,.0f} لتر {1} (فاتورة {2}) بتاريخ {3}".format(
+					float(s.quantity or 0), s.fuel_type or "", s.invoice_number or "—", s.expected_shipping_date or "—"
+				),
+				"link": "/app/inventory/shipment-schedules",
+			})
+	except Exception:
+		pass
+
+
 	# ---- KPIs -----------------------------------------------------------------------
 	today_liters = sum(
 		(r.liters_sold or 0) for r in latest_by_meter.values() if r.liters_sold
@@ -600,6 +621,8 @@ def _aggregate_payload(date, role):
 			"shifts_today": shifts_today,
 			"tanks": len(tanks),
 			"low_tanks": low,
+			"total_cap": total_cap,
+			"cur_vol": cur_vol,
 			"volume_pct": round(cur_vol / total_cap * 100, 1) if total_cap else 0,
 			"total_liters": kpis.get("total_liters"),
 			"expected_sales": kpis.get("expected_sales"),
@@ -613,6 +636,11 @@ def _aggregate_payload(date, role):
 		"stations": out,
 		"alerts": [],
 		"date": date,
+		"summary": {
+			"total_capacity": sum(s.get("total_cap", 0) for s in out),
+			"current_volume": sum(s.get("cur_vol", 0) for s in out),
+			"tanks_count": sum(s.get("tanks", 0) for s in out),
+		},
 	}
 
 

@@ -1,0 +1,1 @@
+import{I as a}from"./index-Yf-__bMg.js";const s=a({visible:!1,message:"",type:"success"});let e=null;function m(){return{toast:s,show:(o,t="success",i=t==="error"?0:3e3)=>{s.message=o,s.type=t,s.visible=!0,clearTimeout(e),i>0&&(e=setTimeout(()=>{s.visible=!1},i))},dismiss:()=>{clearTimeout(e),s.visible=!1}}}export{m as u};

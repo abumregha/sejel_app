@@ -1,0 +1,136 @@
+{
+  "actions": [],
+  "creation": "2026-10-18 06:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["station", "invoice_number", "invoice_date", "station_account_number", "sales_office", "financial_receipt_number", "fuel_product", "deposit_amount", "reference", "notes", "allocated_amount", "balance"],
+  "fields": [
+    {
+      "fieldname": "station",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Station",
+      "options": "Station",
+      "reqd": 1
+    },
+    {
+      "fieldname": "invoice_number",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Invoice Number",
+      "reqd": 1
+    },
+    {
+      "fieldname": "invoice_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Invoice Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "station_account_number",
+      "fieldtype": "Data",
+      "label": "Station Account Number"
+    },
+    {
+      "fieldname": "sales_office",
+      "fieldtype": "Data",
+      "label": "Sales Office"
+    },
+    {
+      "fieldname": "financial_receipt_number",
+      "fieldtype": "Data",
+      "label": "Financial Receipt Number"
+    },
+    {
+      "fieldname": "fuel_product",
+      "fieldtype": "Link",
+      "label": "Fuel Product",
+      "options": "Fuel Type"
+    },
+    {
+      "fieldname": "deposit_amount",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Deposit Amount",
+      "options": "currency:LYD",
+      "reqd": 1
+    },
+    {
+      "fieldname": "reference",
+      "fieldtype": "Data",
+      "label": "Reference"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "default": "0",
+      "fieldname": "allocated_amount",
+      "fieldtype": "Currency",
+      "label": "Allocated Amount",
+      "options": "currency:LYD",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "balance",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Balance",
+      "options": "currency:LYD",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [
+    {
+      "link_doctype": "Shipment Schedule",
+      "link_fieldname": "invoice_number",
+      "link_fieldtype": "Data"
+    }
+  ],
+  "modified": "2026-10-18 06:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Sejel App",
+  "name": "Station Deposit",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "role": "Sejel Manager"
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "role": "Sejel Finance"
+    },
+    {
+      "read": 1,
+      "role": "Sejel Supervisor"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}

@@ -1,0 +1,138 @@
+{
+  "actions": [],
+  "creation": "2026-10-18 06:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": ["station", "deposit", "invoice_number", "fuel_type", "quantity", "expected_shipping_date", "status", "unit_price", "total_amount", "delivery", "serial_number", "notes"],
+  "fields": [
+    {
+      "fieldname": "station",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Station",
+      "options": "Station",
+      "reqd": 1
+    },
+    {
+      "fieldname": "deposit",
+      "fieldtype": "Link",
+      "label": "Invoice / Deposit",
+      "options": "Station Deposit"
+    },
+    {
+      "fieldname": "invoice_number",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Invoice Number",
+      "reqd": 1
+    },
+    {
+      "fieldname": "fuel_type",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Fuel Type",
+      "options": "Fuel Type",
+      "reqd": 1
+    },
+    {
+      "fieldname": "quantity",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Quantity (L)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "expected_shipping_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Expected Shipping Date",
+      "reqd": 1
+    },
+    {
+      "default": "scheduled",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "scheduled\ndispatched\ndelivered\nundelivered\ntransit\ncancelled"
+    },
+    {
+      "description": "سعر تكلفة شراء اللتر من شركة التسويق حتى 8 أرقام عشرية",
+      "fieldname": "unit_price",
+      "fieldtype": "Currency",
+      "label": "Cost Unit Price / سعر شراء اللتر",
+      "options": "currency:LYD",
+      "precision": "8"
+    },
+    {
+      "default": "0",
+      "fieldname": "total_amount",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Total Amount",
+      "options": "currency:LYD",
+      "read_only": 1
+    },
+    {
+      "fieldname": "delivery",
+      "fieldtype": "Link",
+      "label": "Delivery",
+      "options": "Delivery"
+    },
+    {
+      "description": "رقم السطر في نموذج طلب التزويد PR-15-F-05 من 1 إلى 15",
+      "fieldname": "serial_number",
+      "fieldtype": "Int",
+      "label": "Line Sequence (1-15) / المسلسل"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-10-18 06:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Sejel App",
+  "name": "Shipment Schedule",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "role": "Sejel Manager"
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "write": 1,
+      "role": "Sejel Finance"
+    },
+    {
+      "read": 1,
+      "role": "Sejel Supervisor"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
